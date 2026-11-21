@@ -1,0 +1,1 @@
+"""Payslip Sender application package."""

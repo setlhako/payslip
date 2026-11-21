@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Error - Payslip Sender{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>{{ status_code }}</h1>
+  <p>{{ message }}</p>
+  <p><a href="/">Back to the start</a></p>
+</div>
+{% endblock %}
