@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Employees - Payslip Sender{% endblock %}
+{% block nav_key %}employees{% endblock %}
+{% block heading %}Employees{% endblock %}
+{% block lede %}{% if can(current_user, 'ids.reveal') %}The people who receive payslips. Full ID numbers are stored encrypted and stay hidden until you press Show IDs.{% else %}The people who receive payslips. ID numbers are always hidden for your role.{% endif %}{% endblock %}
+{% block actions %}
+  {% if can(current_user, 'ids.reveal') %}<button type="button" class="btn btn-secondary needs-js" data-toggle-ids aria-pressed="false">{{ icon('eye') }}<span data-toggle-label>Show IDs</span></button>{% endif %}
+  {% if can(current_user, 'employees.edit') %}
+  <a class="btn btn-secondary" href="/employees/import">{{ icon('upload') }}Import</a>
+  <a class="btn btn-primary" href="/employees/new">{{ icon('plus') }}Add employee</a>
+  {% endif %}
+{% endblock %}
+{% block content %}
+{% set reveal = can(current_user, 'ids.reveal') %}
+{% set editor = can(current_user, 'employees.edit') %}
+{% if not anything_saved %}
+<div class="table-card empty">
+  <span class="empty-icon">{{ icon('users') }}</span>
+  <h2>No employees yet</h2>
+  <p>{% if editor %}Add people one at a time, or import a whole list from Excel or CSV. You can check everything in a preview before it is saved.{% else %}Nobody has been added yet. Someone with the HR role can add employees.{% endif %}</p>
+  {% if editor %}<div class="actions">
+    <a class="btn btn-primary" href="/employees/new">{{ icon('plus') }}Add employee</a>
+    <a class="btn btn-secondary" href="/employees/import">{{ icon('upload') }}Import from Excel or CSV</a>
+  </div>{% endif %}
+</div>
+{% else %}
+<div class="toolbar">
+  <form class="search" method="get" action="/employees" role="search">
+    {% if status != 'active' %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+    {% if sort != 'name' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    {% if direction != 'asc' %}<input type="hidden" name="dir" value="{{ direction }}">{% endif %}
+    {% if per_page != 25 %}<input type="hidden" name="per_page" value="{{ per_page }}">{% endif %}
+    <div class="search-box">
+      <label class="visually-hidden" for="q">Search employees</label>
+      {{ icon('search', 'icon-lead') }}
+      <input class="input" type="search" id="q" name="q" value="{{ q }}" placeholder="Search name, phone or code">
+      {% if q %}<a class="icon-btn clear" href="{{ url(q='') }}" aria-label="Clear search">{{ icon('x') }}</a>{% endif %}
+    </div>
+    <button class="btn btn-secondary" type="submit">Search</button>
+  </form>
+  <nav class="chips" aria-label="Filter by status">
+    {% for key, label in [('active', 'Active'), ('inactive', 'Inactive'), ('all', 'All')] %}
+    <a class="chip" href="{{ url(status=key) }}" {% if status == key %}aria-current="true"{% endif %}>{{ label }} <span class="count">{{ counts[key] }}</span></a>
+    {% endfor %}
+  </nav>
+</div>
+
+{% if result.items %}
+{% if reveal %}
+<form method="post" action="/employees/reveal-ids" data-reveal-form hidden>
+  {{ csrf_input(request) }}
+  <input type="hidden" name="q" value="{{ q }}">
+  <input type="hidden" name="status" value="{{ status }}">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="dir" value="{{ direction }}">
+  <input type="hidden" name="per_page" value="{{ per_page }}">
+  <input type="hidden" name="page" value="{{ result.page }}">
+</form>
+<div class="callout callout-error" role="alert" data-reveal-error hidden>{{ icon('x-circle') }}<div class="callout-text" data-reveal-error-text></div></div>
+{% endif %}
+<div class="table-card scroll-sm" role="region" aria-label="Employees" tabindex="0">
+  <table class="data wide-table">
+    <caption class="visually-hidden">Employees, {{ result.total }} found</caption>
+    <thead>
+      <tr>
+        {% set s = aria_sort('name') %}
+        <th scope="col" aria-sort="{{ s }}"><a class="sort" href="{{ sort_link('name') }}">Name {{ icon('arrow-up' if s == 'ascending' else 'arrow-down' if s == 'descending' else 'sort') }}</a></th>
+        <th scope="col" class="hide-sm">Code</th>
+        <th scope="col" class="hide-sm">Phone</th>
+        <th scope="col" class="hide-sm">ID type</th>
+        <th scope="col" class="hide-sm">ID number</th>
+        {% if reveal %}<th scope="col" class="hide-sm">Password (last 4)</th>{% endif %}
+        {% set s = aria_sort('status') %}
+        <th scope="col" aria-sort="{{ s }}"><a class="sort" href="{{ sort_link('status') }}">Status {{ icon('arrow-up' if s == 'ascending' else 'arrow-down' if s == 'descending' else 'sort') }}</a></th>
+        <th scope="col" class="col-actions-head"><span class="visually-hidden">Actions</span></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in result.items %}
+      <tr>
+        <td>
+          <div class="person">
+            {{ avatar(e.first_name, e.surname, e.id) }}
+            <div>
+              <div class="person-name">{{ e.first_name }} {{ e.surname }}</div>
+              <div class="sub">{{ e.phone or 'No phone number' }}</div>
+            </div>
+          </div>
+        </td>
+        <td class="hide-sm">{{ e.employee_code or '-' }}</td>
+        <td class="hide-sm num nowrap">{% if e.phone %}{{ e.phone }}{% else %}<span class="muted">Missing</span>{% endif %}</td>
+        <td class="hide-sm">{% if e.id_type %}{{ e.id_type_label }}{% else %}-{% endif %}</td>
+        <td class="hide-sm nowrap">
+          {% if not reveal %}{% if e.has_full_id or e.id_last4 %}<span class="secret">{{ id_mask }}</span>{% else %}<span class="muted">Not set</span>{% endif %}
+          {% elif e.has_full_id %}<span class="secret" data-id-slot="{{ e.id }}">{{ id_mask }}</span>
+          {% elif e.id_last4 %}<span class="secret">&bull;&bull;&bull;&bull;{{ e.id_last4 }}</span><span class="id-note">full ID not imported yet</span>
+          {% else %}<span class="muted">Not set</span>{% endif %}
+        </td>
+        {% if reveal %}<td class="hide-sm">{% if e.id_last4 %}<span class="secret" data-secret="{{ e.id_last4 }}">&bull;&bull;&bull;&bull;</span>{% else %}<span class="muted">Not set</span>{% endif %}</td>{% endif %}
+        <td>{{ badge('active', 'Active') if e.active else badge('inactive', 'Inactive') }}</td>
+        <td class="col-actions">
+          {% if editor %}
+          <details class="menu">
+            <summary class="icon-btn" aria-label="Actions for {{ e.first_name }} {{ e.surname }}">{{ icon('more') }}</summary>
+            <div class="menu-list">
+              <a class="menu-item" href="/employees/{{ e.id }}/edit">{{ icon('edit') }}Edit</a>
+              <form method="post" action="/employees/{{ e.id }}/{{ 'deactivate' if e.active else 'activate' }}">
+                {{ csrf_input(request) }}
+                {% if e.active %}
+                <button type="submit" class="menu-item is-danger" data-confirm-title="Deactivate {{ e.first_name }} {{ e.surname }}?" data-confirm="They are hidden from the default list and skipped when sending. Nothing is deleted, and you can reactivate them at any time." data-confirm-label="Deactivate">{{ icon('user-off') }}Deactivate</button>
+                {% else %}
+                <button type="submit" class="menu-item">{{ icon('user-on') }}Reactivate</button>
+                {% endif %}
+              </form>
+            </div>
+          </details>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="table-foot">
+    <p class="muted num" aria-live="polite">Showing {{ result.first }}&ndash;{{ result.last }} of {{ result.total }}</p>
+    <form class="per-page" method="get" action="/employees">
+      {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+      {% if status != 'active' %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+      {% if sort != 'name' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+      {% if direction != 'asc' %}<input type="hidden" name="dir" value="{{ direction }}">{% endif %}
+      <label for="per_page">Rows per page</label>
+      <select class="select" id="per_page" name="per_page" data-autosubmit>
+        {% for n in per_page_choices %}<option value="{{ n }}" {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-secondary btn-sm no-js-only" type="submit">Apply</button>
+    </form>
+    {% if result.pages > 1 %}
+    <nav class="pager" aria-label="Pagination">
+      {% if result.page > 1 %}
+      <a class="page-link" href="{{ url(page=result.page - 1) }}" aria-label="Previous page">{{ icon('chev-left') }}</a>
+      {% else %}
+      <span class="page-link is-disabled" aria-hidden="true">{{ icon('chev-left') }}</span>
+      {% endif %}
+      {% for n in result.numbers() %}
+        {% if n is none %}<span class="ellipsis" aria-hidden="true">&hellip;</span>
+        {% elif n == result.page %}<span class="page-link" aria-current="page"><span class="visually-hidden">Page </span>{{ n }}</span>
+        {% else %}<a class="page-link" href="{{ url(page=n) }}"><span class="visually-hidden">Page </span>{{ n }}</a>{% endif %}
+      {% endfor %}
+      {% if result.page < result.pages %}
+      <a class="page-link" href="{{ url(page=result.page + 1) }}" aria-label="Next page">{{ icon('chev-right') }}</a>
+      {% else %}
+      <span class="page-link is-disabled" aria-hidden="true">{{ icon('chev-right') }}</span>
+      {% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="table-card empty">
+  <span class="empty-icon">{{ icon('search') }}</span>
+  <h2>No employees match</h2>
+  <p>{% if q %}Nobody matches &ldquo;{{ q }}&rdquo; in this list.{% else %}Nobody is in this list yet.{% endif %} Try a different spelling, or look at everyone.</p>
+  <div class="actions">
+    <a class="btn btn-secondary" href="{{ url(q='', status='all') }}">Show all employees</a>
+    {% if editor %}<a class="btn btn-primary" href="/employees/new">{{ icon('plus') }}Add employee</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

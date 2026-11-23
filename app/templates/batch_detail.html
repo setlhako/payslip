@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}{{ batch.pay_month_label }} - Batches - Payslip Sender{% endblock %}
+{% block nav_key %}batches{% endblock %}
+{% block head_extra %}{% if processing %}<meta http-equiv="refresh" content="2">{% endif %}{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Batches', '/batches'), (batch.pay_month_label, None)]) }}{% endblock %}
+{% block heading %}{{ batch.pay_month_label }}{% endblock %}
+{% block lede %}Created {{ batch.created_at.strftime('%d %b %Y') }}. Check every match, then confirm the batch. Nothing is sent yet.{% endblock %}
+{% block actions %}
+  <a class="btn btn-secondary" href="/batches">{{ icon('chev-left') }}All batches</a>
+  <a class="btn btn-secondary" href="/batches/{{ batch.id }}/confirm">{{ icon('check') }}Review and confirm</a>
+  {% if can(current_user, 'batches.send') %}
+  {% if batch.status == 'ready' %}
+  <a class="btn btn-primary" href="/batches/{{ batch.id }}/send">{{ icon('upload') }}Send payslips</a>
+  {% else %}
+  <button type="button" class="btn btn-secondary" disabled title="Mark the batch ready first">{{ icon('lock') }}Send payslips</button>
+  {% endif %}
+  {% endif %}
+{% endblock %}
+{% block content %}
+{% if processing %}
+<div class="callout callout-info" role="status">{{ icon('clock') }}
+  <div class="progress-wrap">
+    <div class="callout-text"><strong>Checking the files</strong> ({{ batch.processing_done }} of {{ batch.processing_total }}). This page refreshes by itself.</div>
+    <progress class="bar" max="{{ batch.processing_total or 1 }}" value="{{ batch.processing_done }}" aria-label="Matching progress">{{ batch.processing_done }} of {{ batch.processing_total }}</progress>
+  </div>
+</div>
+{% endif %}
+{% if failed %}
+<div class="callout callout-error" role="alert">{{ icon('x-circle') }}
+  <div class="callout-text">Matching did not finish (the server may have restarted). Files already matched are kept.
+    {% if can(current_user, 'batches.manage') %}<form method="post" action="/batches/{{ batch.id }}/rematch" class="inline">{{ csrf_input(request) }}<button class="btn btn-secondary btn-sm" type="submit">Re-run matching</button></form>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% if batch.files_deleted_at %}
+<div class="callout callout-warn" role="status">{{ icon('alert') }}<div class="callout-text">The stored PDFs of this batch were deleted after the retention period. The list below is kept for your records.</div></div>
+{% elif batch.status == 'ready' %}
+<div class="callout callout-ok" role="status">{{ icon('check-circle') }}
+  <div class="callout-text">This batch is marked <strong>ready to send</strong>. Reopen it if you need to change anything.
+    {% if can(current_user, 'batches.manage') %}<form method="post" action="/batches/{{ batch.id }}/reopen" class="inline">{{ csrf_input(request) }}<button class="btn btn-secondary btn-sm" type="submit">Reopen</button></form>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<section class="summary-bar summary-6" aria-label="Files by status">
+  <div class="summary-item"><div class="summary-count c-ok">{{ counts.exact }}</div><div class="summary-label">Exact</div></div>
+  <div class="summary-item"><div class="summary-count c-info">{{ counts.confirmed }}</div><div class="summary-label">Confirmed by HR</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-warn' if counts.needs_review else 'c-neutral' }}">{{ counts.needs_review }}</div><div class="summary-label">Needs review</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-danger' if counts.possible_mismatch else 'c-neutral' }}">{{ counts.possible_mismatch }}</div><div class="summary-label">Possible mismatch</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-danger' if counts.unmatched else 'c-neutral' }}">{{ counts.unmatched }}</div><div class="summary-label">Unmatched</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-danger' if counts.invalid else 'c-neutral' }}">{{ counts.invalid }}</div><div class="summary-label">Invalid file</div></div>
+</section>
+
+<div class="toolbar">
+  <nav class="chips" aria-label="Which files to show">
+    <a class="chip" href="?show=all" {% if show == 'all' %}aria-current="true"{% endif %}>All files <span class="count">{{ total }}</span></a>
+    <a class="chip" href="?show=problems" {% if show == 'problems' %}aria-current="true"{% endif %}>Need attention <span class="count">{{ problem_count }}</span></a>
+  </nav>
+  <p class="muted">Problem files are listed first. Phone numbers show the last 3 digits only.</p>
+</div>
+
+{% if views %}
+<datalist id="employee-options">
+  {% for e in active_employees %}<option value="{{ e.full_name }} (#{{ e.id }})" label="{{ 'code ' ~ e.employee_code ~ ' · ' if e.employee_code }}{{ 'phone ending ' ~ e.phone[-3:] if e.phone else 'no phone' }}"></option>{% endfor %}
+</datalist>
+<div class="table-card scroll-sm" role="region" aria-label="Files in this batch" tabindex="0">
+  <table class="data review wide-table">
+    <caption class="visually-hidden">Files in this batch</caption>
+    <thead>
+      <tr>
+        <th scope="col">File</th>
+        <th scope="col">Matched employee</th>
+        <th scope="col">Status</th>
+        <th scope="col">Phone</th>
+        <th scope="col">Ready to send?</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for v in views %}
+      {% set p = v.p %}
+      <tr id="file-{{ p.id }}" class="{{ 'row-error' if v.status in ('invalid', 'possible_mismatch') else 'row-attention' if v.problems }}">
+        <td>
+          <div class="file-name">{{ p.original_filename }}</div>
+          <div class="file-meta">{% if p.page_count %}{{ p.page_count }} page{{ '' if p.page_count == 1 else 's' }}{% endif %}{% if p.file_size %} · {{ (p.file_size / 1024)|round|int }} KB{% endif %}</div>
+        </td>
+        <td>
+          {% if v.employee %}
+            <div class="person"><div><div class="person-name">{{ v.employee.full_name }}</div>{% if v.employee.employee_code %}<div class="file-meta">Code {{ v.employee.employee_code }}</div>{% endif %}</div></div>
+          {% elif v.suggestions %}
+            <div class="file-meta">Suggestions:</div>
+            <ul class="suggestions">
+              {% for e, score in v.suggestions %}
+              <li>
+                {% if editable %}
+                <form method="post" action="/batches/{{ batch.id }}/payslips/{{ p.id }}/match">
+                  {{ csrf_input(request) }}<input type="hidden" name="employee_id" value="{{ e.id }}">
+                  <button class="btn btn-secondary btn-sm" type="submit">Use {{ e.full_name }} <span class="muted">({{ score }}% similar)</span></button>
+                </form>
+                {% else %}{{ e.full_name }} ({{ score }}% similar){% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+          {% elif v.status == 'invalid' %}<span class="muted">-</span>
+          {% else %}<span class="muted">No employee found</span>{% endif %}
+        </td>
+        <td>
+          <div class="badges">{{ badge(v.status, v.label) }}</div>
+          {% if v.note %}<p class="note-info">{{ icon('info') }}<span>{{ v.note }}</span></p>{% endif %}
+        </td>
+        <td class="num nowrap">{% if v.employee and v.employee.phone %}{{ v.phone }}{% else %}<span class="muted">-</span>{% endif %}</td>
+        <td>
+          {% if v.problems %}
+          <ul class="msgs">{% for pr in v.problems %}<li class="{{ 'is-error' if pr.code in ('invalid', 'mismatch', 'two_files', 'duplicate_name') else 'is-warn' }}">{{ pr.text }}</li>{% endfor %}</ul>
+          {% else %}<span class="ready-ok">{{ icon('check-circle') }}Ready</span>{% endif %}
+        </td>
+        <td>
+          {% if editable %}
+          <div class="row-actions">
+            {% if v.employee and not p.confirmed %}
+            <form method="post" action="/batches/{{ batch.id }}/payslips/{{ p.id }}/confirm">{{ csrf_input(request) }}<button class="btn btn-primary btn-sm" type="submit">{{ icon('check', 'sm') }}Confirm match</button></form>
+            {% endif %}
+            {% if v.status != 'invalid' and v.status != 'pending' %}
+            <details class="change">
+              <summary class="btn btn-secondary btn-sm">{{ icon('edit', 'sm') }}{{ 'Change match' if v.employee else 'Choose employee' }}</summary>
+              <form method="post" action="/batches/{{ batch.id }}/payslips/{{ p.id }}/match" class="change-form">
+                {{ csrf_input(request) }}
+                <label class="visually-hidden" for="emp-{{ p.id }}">Search employees for {{ p.original_filename }}</label>
+                <input class="input" id="emp-{{ p.id }}" type="text" name="employee_label" list="employee-options" placeholder="Type a name..." autocomplete="off" required>
+                <button class="btn btn-secondary btn-sm" type="submit">Save match</button>
+              </form>
+            </details>
+            {% endif %}
+            <form method="post" action="/batches/{{ batch.id }}/payslips/{{ p.id }}/remove">{{ csrf_input(request) }}<button class="btn btn-secondary btn-sm" type="submit" aria-label="Remove {{ p.original_filename }} from the batch">Remove</button></form>
+          </div>
+          {% else %}<span class="muted">-</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif total %}
+<div class="table-card empty is-success"><span class="empty-icon">{{ icon('check-circle') }}</span><h2>No files need attention</h2><p>Every file is ready. Choose All files to see them.</p></div>
+{% else %}
+<div class="table-card empty"><span class="empty-icon">{{ icon('file') }}</span><h2>No files in this batch</h2><p>Add PDF files or a ZIP below.</p></div>
+{% endif %}
+
+{% if editable %}
+<details class="card gap-top">
+  <summary><strong>Add more files</strong> <span class="muted">(PDFs or a ZIP)</span></summary>
+  <form method="post" action="/batches/{{ batch.id }}/upload" enctype="multipart/form-data" data-once class="form-in-details">
+    {{ csrf_input(request) }}
+    {% set mode = 'pdfs' %}{% set uid = 'more' %}
+    {% include "_upload_fields.html" %}
+    <button class="btn btn-primary" type="submit">{{ icon('upload') }}Add files</button>
+  </form>
+</details>
+{% endif %}
+
+<h2 class="section-title">Active employees with no payslip in this batch ({{ without_payslip|length }})</h2>
+{% if without_payslip %}
+<div class="card">
+  <p class="muted">These people will not get a payslip from this batch. That is allowed; this list is for your information.</p>
+  <ul class="plain-list">{% for e in without_payslip %}<li>{{ e.full_name }}</li>{% endfor %}</ul>
+</div>
+{% else %}
+<p class="muted">Every active employee has a file in this batch.</p>
+{% endif %}
+
+{% if batch.status != 'sending' and batch.status != 'completed' and can(current_user, 'batches.manage') %}
+<div class="danger-zone">
+  <form method="post" action="/batches/{{ batch.id }}/delete" data-once>
+    {{ csrf_input(request) }}
+    <p class="hint">Deleting or cancelling a batch removes all its uploaded PDFs from the server. This cannot be undone.</p>
+    <button class="btn btn-danger" type="submit" data-confirm-title="Delete this batch?" data-confirm="The batch and all its uploaded PDFs are removed from the server. This cannot be undone." data-confirm-label="Delete batch">Cancel and delete this batch</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the encrypted database backup every night
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

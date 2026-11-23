@@ -45,6 +45,13 @@ def record_success(db: Session, username: str, ip: str) -> None:
     db.commit()
 
 
+def purge_old(db: Session, days: int = 1) -> int:
+    """Delete login-attempt rows older than `days` (they only matter inside the lockout window). Returns how many."""
+    result = db.execute(delete(LoginAttempt).where(LoginAttempt.attempted_at < utcnow() - timedelta(days=days)))
+    db.commit()
+    return result.rowcount or 0
+
+
 def clear_for_username(db: Session, username: str) -> None:
     """Used when an admin's password is reset: remove any lockout for that username."""
     db.execute(delete(LoginAttempt).where(LoginAttempt.username == username[:150]))

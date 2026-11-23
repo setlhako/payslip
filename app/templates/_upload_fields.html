@@ -1,0 +1,14 @@
+{# The "how are you uploading" choice, shared by the New batch form and the Add files panel. Needs: mode, limits #}
+<fieldset class="fieldset">
+  <legend>What are you uploading?</legend>
+  <div class="choice">
+    <label for="mode-pdfs"><input type="radio" id="mode-pdfs" name="mode" value="pdfs" {% if mode != 'zip' %}checked{% endif %}> Several PDF files</label>
+    <input type="file" id="files-{{ uid }}" name="files" accept="application/pdf,.pdf" multiple aria-label="PDF files">
+  </div>
+  <div class="choice">
+    <label for="mode-zip"><input type="radio" id="mode-zip" name="mode" value="zip" {% if mode == 'zip' %}checked{% endif %}> One ZIP file of PDFs</label>
+    <input type="file" id="zip-{{ uid }}" name="zip_file" accept=".zip,application/zip" aria-label="ZIP file">
+  </div>
+  <p class="hint">Name each file like <em>thabo_molefe.pdf</em> (first name and surname, either order). Up to {{ limits.files }} files per batch,
+     {{ limits.pdf_mb }} MB per PDF, {{ limits.total_mb }} MB in total. Folders and hidden files inside a ZIP are ignored; a ZIP inside a ZIP is not accepted.</p>
+</fieldset>

@@ -1,8 +1,131 @@
 {% extends "base.html" %}
+{% from "_ribbon.html" import ribbon, legend %}
+{% block title %}Dashboard - Payslip Sender{% endblock %}
+{% block nav_key %}dashboard{% endblock %}
+{% block heading %}Dashboard{% endblock %}
+{% block lede %}Hello {{ current_user.display_name }}. {{ 'Here is where this month\'s payslip run stands.' if has_batches else 'Get your employee list ready, then send this month\'s payslips.' }}{% endblock %}
+{% block actions %}
+  {% if can(current_user, 'employees.edit') %}<a class="btn btn-secondary" href="/employees/import">{{ icon('upload') }}Import employees</a>{% endif %}
+  {% if can(current_user, 'batches.manage') %}<a class="btn btn-primary" href="/batches/new">{{ icon('plus') }}New batch</a>{% endif %}
+{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>Dashboard</h1>
-  <p>You are logged in. Employees and payslip batches will be added in the next steps.</p>
-  <p>WhatsApp mode: <span class="badge">{{ whatsapp_mode }}</span></p>
+{# ---- the latest batch: one ribbon that shows where the payslips are ---- #}
+{% if latest %}
+{% set b = latest.batch %}
+<section class="panel" aria-labelledby="latest-title">
+  <div class="panel-section">
+    <div class="panel-head">
+      <h2 id="latest-title">Latest batch</h2>
+      <a class="btn btn-secondary btn-sm" href="/batches/{{ b.id }}">Open batch</a>
+    </div>
+    <div class="run-title">{{ b.pay_month_label }} {{ badge(latest.state_kind, latest.state_label) }}</div>
+    <p class="run-meta">Created {{ b.created_at.strftime('%d %b %Y') }}. {{ latest.total }} file{{ '' if latest.total == 1 else 's' }}.</p>
+    {% if latest.sent %}
+      {{ ribbon(latest.counts, ['pending','queued','sending','sent','delivered','read','failed','uncertain'], latest.good ~ ' of ' ~ latest.total ~ ' delivered or read') }}
+      {{ legend(latest.counts, ['pending','queued','sending','sent','delivered','read','failed','uncertain'], {'pending': 'Not sent', 'queued': 'Queued', 'sending': 'Sending', 'sent': 'Sent', 'delivered': 'Delivered', 'read': 'Read', 'failed': 'Failed', 'uncertain': 'Uncertain'}) }}
+      {% if latest.rate is not none %}
+      <p class="run-meta gap-top"><strong>{{ latest.rate }}%</strong> delivered or read ({{ latest.good }} of {{ latest.attempted }} sent).
+        {% if latest.counts.failed or latest.counts.uncertain %}<a href="/batches/{{ b.id }}">{{ latest.counts.failed + latest.counts.uncertain }} need{{ 's' if latest.counts.failed + latest.counts.uncertain == 1 else '' }} a look.</a>{% endif %}</p>
+      {% endif %}
+    {% elif latest.review %}
+      <p class="run-meta">{{ latest.review.exact + latest.review.confirmed }} matched{% if latest.attention %}, <strong class="c-warn">{{ latest.attention }} need attention</strong>{% else %}, nothing needs attention{% endif %}.
+        {% if b.status == 'ready' %}It is ready: open it to send.{% else %}Check the matches, then mark it ready.{% endif %}</p>
+    {% endif %}
+  </div>
+  {% if last_sent %}
+  <div class="panel-section">
+    <div class="panel-head"><h2>Last sent batch: {{ last_sent.batch.pay_month_label }}</h2><a class="btn btn-secondary btn-sm" href="/batches/{{ last_sent.batch.id }}">Open</a></div>
+    {{ ribbon(last_sent.counts, ['pending','queued','sending','sent','delivered','read','failed','uncertain'], last_sent.good ~ ' of ' ~ last_sent.total ~ ' delivered or read') }}
+    <p class="run-meta gap-top">{% if last_sent.rate is not none %}<strong>{{ last_sent.rate }}%</strong> delivered or read ({{ last_sent.good }} of {{ last_sent.attempted }} sent).{% else %}Nothing was sent yet.{% endif %}</p>
+  </div>
+  {% endif %}
+</section>
+{% else %}
+<section class="table-card empty" aria-labelledby="latest-title">
+  <span class="empty-icon">{{ icon('batches') }}</span>
+  <h2 id="latest-title">No batches yet</h2>
+  <p>A batch is one pay run. Upload the payslip PDFs, check each match, then send.{% if not can(current_user, 'batches.manage') %} Someone with the HR role can start one.{% endif %}</p>
+  {% if can(current_user, 'batches.manage') %}<div class="actions"><a class="btn btn-primary" href="/batches/new">{{ icon('plus') }}New batch</a></div>{% endif %}
+</section>
+{% endif %}
+
+<h2 class="section-title gap-top">Employees</h2>
+<section class="ledger" aria-label="Employee overview">
+  <div class="ledger-item">
+    <div class="ledger-count">{{ stats.active }}</div>
+    <div class="ledger-label">Active employees</div>
+    <a href="/employees">View list</a>
+  </div>
+  <div class="ledger-item">
+    <div class="ledger-count">{{ stats.inactive }}</div>
+    <div class="ledger-label">Inactive employees</div>
+    <a href="/employees?status=inactive">View inactive</a>
+  </div>
+  <div class="ledger-item">
+    <div class="ledger-count {{ 'c-warn' if stats.missing_phone }}">{{ stats.missing_phone }}</div>
+    <div class="ledger-label">Active, no phone number</div>
+  </div>
+  <div class="ledger-item">
+    <div class="ledger-count {{ 'c-warn' if stats.missing_id }}">{{ stats.missing_id }}</div>
+    <div class="ledger-label">Active, no ID on file</div>
+  </div>
+</section>
+
+<div class="dash-cols">
+  <div>
+    <h2 class="section-title">Your payslip run</h2>
+    <ol class="run">
+      <li>
+        <span class="step-marker">{% if stats.active and not stats.missing_phone and not stats.missing_id %}{{ icon('check', 'sm') }}{% else %}1{% endif %}</span>
+        <div class="run-text">
+          <strong>Employees ready</strong>
+          <span>
+            {% if not stats.active %}Add your employees one by one, or import them from Excel or CSV.
+            {% elif stats.missing_phone or stats.missing_id %}Some active employees still need a phone number or an ID before they can receive a payslip.
+            {% else %}Everyone active has a phone number and an ID.{% endif %}
+          </span>
+        </div>
+        <a class="btn btn-secondary btn-sm" href="/employees">{{ 'Manage employees' if can(current_user, 'employees.edit') else 'View employees' }}</a>
+      </li>
+      <li>
+        <span class="step-marker">2</span>
+        <div class="run-text"><strong>Upload payslips</strong><span>Create a batch, upload the PDFs (or one ZIP), then check each match.</span></div>
+        <a class="btn btn-secondary btn-sm" href="/batches">Open batches</a>
+      </li>
+      <li>
+        <span class="step-marker">3</span>
+        <div class="run-text"><strong>Send</strong><span>Mark a batch ready, then send the checked payslips on WhatsApp and watch their delivery.</span></div>
+        <a class="btn btn-secondary btn-sm" href="/batches">Open batches</a>
+      </li>
+    </ol>
+  </div>
+  <div>
+    <h2 class="section-title">Quick actions</h2>
+    <ul class="quick quick-panel panel">
+      {% if can(current_user, 'batches.manage') %}<li><a class="btn btn-primary" href="/batches/new">{{ icon('plus') }}New batch</a></li>{% endif %}
+      {% if can(current_user, 'employees.edit') %}
+      <li><a class="btn btn-secondary" href="/employees/import">{{ icon('upload') }}Import employees</a></li>
+      <li><a class="btn btn-secondary" href="/employees/new">{{ icon('user') }}Add employee</a></li>
+      {% endif %}
+      {% if can(current_user, 'users.manage') %}<li><a class="btn btn-secondary" href="/users/new">{{ icon('shield') }}Add user</a></li>{% endif %}
+      {% if can(current_user, 'audit.view') %}<li><a class="btn btn-secondary" href="/audit">{{ icon('log') }}Audit log</a></li>{% endif %}
+      {% if not can(current_user, 'batches.manage') and not can(current_user, 'employees.edit') %}<li class="muted">You have read-only access. You can look at employees, batches and send progress.</li>{% endif %}
+    </ul>
+  </div>
 </div>
+
+{% if can(current_user, 'audit.view') %}
+<h2 class="section-title gap-top">Recent activity</h2>
+{% if feed %}
+<ul class="feed panel panel-section">
+  {% for item in feed %}
+  <li><span class="what">{{ item.what }}</span><time datetime="{{ item.when.isoformat() }}">{{ item.when.strftime('%d %b %H:%M') }}</time><span class="who">{{ item.who }}</span></li>
+  {% endfor %}
+</ul>
+<p class="inline-note"><a href="/audit">See the whole audit log</a></p>
+{% else %}
+<p class="muted">Nothing has happened yet.</p>
+{% endif %}
+{% endif %}
+<p class="footnote">WhatsApp mode: {{ whatsapp_mode }}{% if whatsapp_mode == 'mock' %} (test mode, nothing is really sent){% endif %}.</p>
 {% endblock %}

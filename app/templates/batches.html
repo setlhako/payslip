@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_ribbon.html" import ribbon %}
+{% block title %}Batches - Payslip Sender{% endblock %}
+{% block nav_key %}batches{% endblock %}
+{% block heading %}Batches{% endblock %}
+{% block lede %}One batch per pay run. Upload the payslip PDFs, check that each one matches the right employee, then mark the batch ready.{% endblock %}
+{% block actions %}{% if can(current_user, 'batches.manage') %}<a class="btn btn-primary" href="/batches/new">{{ icon('plus') }}New batch</a>{% endif %}{% endblock %}
+{% block content %}
+{% if not batches %}
+<div class="table-card empty">
+  <span class="empty-icon">{{ icon('batches') }}</span>
+  <h2>No batches yet</h2>
+  <p>{% if can(current_user, 'batches.manage') %}Create a batch for this month's payslips, then upload the PDFs (or one ZIP). Nothing is sent to anyone while you check them.{% else %}Nobody has created a batch yet. Someone with the HR role can start one.{% endif %}</p>
+  {% if can(current_user, 'batches.manage') %}<div class="actions"><a class="btn btn-primary" href="/batches/new">{{ icon('plus') }}New batch</a></div>{% endif %}
+</div>
+{% else %}
+<div class="table-card scroll-sm" role="region" aria-label="Batches" tabindex="0">
+  <table class="data wide-table">
+    <caption class="visually-hidden">Payslip batches, newest first</caption>
+    <thead>
+      <tr>
+        <th scope="col">Pay month</th>
+        <th scope="col" class="hide-sm">Created</th>
+        <th scope="col">Files</th>
+        <th scope="col">Matched</th>
+        <th scope="col">Needs review</th>
+        <th scope="col">Unmatched</th>
+        <th scope="col">Invalid</th>
+        <th scope="col" class="hide-sm">Delivery</th>
+        <th scope="col">Status</th>
+        <th scope="col" class="col-actions-head"><span class="visually-hidden">Actions</span></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in batches %}
+      {% set kind, label = r.state %}
+      <tr>
+        <td><a class="person-name" href="/batches/{{ r.batch.id }}">{{ r.batch.pay_month_label }}</a></td>
+        <td class="hide-sm num nowrap">{{ r.batch.created_at.strftime('%d %b %Y') }}</td>
+        <td class="num">{{ r.files }}</td>
+        <td class="num">{{ r.matched }}</td>
+        <td class="num {{ 'c-warn' if r.review }}">{{ r.review }}</td>
+        <td class="num {{ 'c-danger' if r.unmatched }}">{{ r.unmatched }}</td>
+        <td class="num {{ 'c-danger' if r.invalid }}">{{ r.invalid }}</td>
+        <td class="hide-sm delivery-cell">{% if r.delivery %}{{ ribbon(r.delivery, order, r.good ~ ' of ' ~ r.delivery.total ~ ' delivered or read') }}<span class="file-meta">{{ r.good }} of {{ r.delivery.total }} delivered or read</span>{% else %}<span class="muted">-</span>{% endif %}</td>
+        <td>{{ badge(kind, label) }}</td>
+        <td class="col-actions"><a class="btn btn-secondary btn-sm" href="/batches/{{ r.batch.id }}">Open</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

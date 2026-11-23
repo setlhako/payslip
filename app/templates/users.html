@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}Users - Payslip Sender{% endblock %}
+{% block nav_key %}users{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Users', None)]) }}{% endblock %}
+{% block heading %}Users{% endblock %}
+{% block lede %}Who can sign in, and what each person may do. Passwords are never shown: new and reset passwords are temporary and shown once.{% endblock %}
+{% block actions %}<a class="btn btn-primary" href="/users/new">{{ icon('plus') }}Add user</a>{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <form class="search" method="get" action="/users" role="search">
+    <div class="search-box">
+      <label class="visually-hidden" for="q">Search users</label>
+      {{ icon('search', 'icon-lead') }}
+      <input class="input" type="search" id="q" name="q" value="{{ q }}" placeholder="Search name, username or role">
+      {% if q %}<a class="icon-btn clear" href="/users" aria-label="Clear search">{{ icon('x') }}</a>{% endif %}
+    </div>
+    <button class="btn btn-secondary" type="submit">Search</button>
+  </form>
+  <p class="muted num" aria-live="polite">{{ rows|length }}{% if q %} of {{ total }}{% endif %} user{{ '' if rows|length == 1 else 's' }}</p>
+</div>
+
+{% if rows %}
+<div class="table-card scroll-sm" role="region" aria-label="Users" tabindex="0">
+  <table class="data wide-table">
+    <caption class="visually-hidden">Users, sorted by username</caption>
+    <thead>
+      <tr>
+        <th scope="col">User</th>
+        <th scope="col">Role</th>
+        <th scope="col">Status</th>
+        <th scope="col" class="hide-sm">Last login</th>
+        <th scope="col" class="col-actions-head"><span class="visually-hidden">Actions</span></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u, locked in rows %}
+      <tr>
+        <td>
+          <div class="person">
+            {{ avatar(u.display_name, '', u.id) }}
+            <div>
+              <div class="person-name">{{ u.full_name or u.username }}{% if u.id == current_user.id %} <span class="muted">(you)</span>{% endif %}</div>
+              <div class="file-meta">{{ u.username }}</div>
+            </div>
+          </div>
+        </td>
+        <td>{{ badge(u.role, role_labels.get(u.role, u.role)) }}</td>
+        <td>
+          <div class="badges">
+            {% if u.is_active %}{{ badge('active', 'Active') }}{% else %}{{ badge('disabled', 'Disabled') }}{% endif %}
+            {% if locked %}{{ badge('locked', 'Locked out') }}{% endif %}
+            {% if u.must_change_password %}{{ badge('warning', 'Temporary password') }}{% endif %}
+          </div>
+        </td>
+        <td class="hide-sm num nowrap">{% if u.last_login_at %}{{ u.last_login_at.strftime('%d %b %Y %H:%M') }}{% else %}<span class="muted">Never</span>{% endif %}</td>
+        <td class="col-actions">
+          <details class="menu">
+            <summary class="icon-btn" aria-label="Actions for {{ u.display_name }}">{{ icon('more') }}</summary>
+            <div class="menu-list">
+              <a class="menu-item" href="/users/{{ u.id }}/edit">{{ icon('edit') }}Edit role and name</a>
+              <form method="post" action="/users/{{ u.id }}/reset-password">
+                {{ csrf_input(request) }}
+                <button type="submit" class="menu-item" data-confirm-title="Reset password?" data-confirm="{{ u.display_name }} will be signed out and must choose a new password with the temporary one you are shown next." data-confirm-label="Reset password">{{ icon('key') }}Reset password</button>
+              </form>
+              {% if locked %}
+              <form method="post" action="/users/{{ u.id }}/unlock">{{ csrf_input(request) }}<button type="submit" class="menu-item">{{ icon('lock') }}Unlock account</button></form>
+              {% endif %}
+              <form method="post" action="/users/{{ u.id }}/signout">
+                {{ csrf_input(request) }}
+                <button type="submit" class="menu-item" data-confirm-title="Sign out everywhere?" data-confirm="Every open session of {{ u.display_name }} will end. They can log in again." data-confirm-label="Sign out everywhere">{{ icon('logout') }}Sign out everywhere</button>
+              </form>
+              {% if u.id != current_user.id %}
+              {% if u.is_active %}
+              <form method="post" action="/users/{{ u.id }}/disable">
+                {{ csrf_input(request) }}
+                <button type="submit" class="menu-item is-danger" data-confirm-title="Disable this user?" data-confirm="{{ u.display_name }} will be signed out and will not be able to log in until you enable them again." data-confirm-label="Disable user">{{ icon('user-off') }}Disable</button>
+              </form>
+              {% else %}
+              <form method="post" action="/users/{{ u.id }}/enable">{{ csrf_input(request) }}<button type="submit" class="menu-item">{{ icon('user-on') }}Enable</button></form>
+              {% endif %}
+              {% endif %}
+            </div>
+          </details>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="table-card empty">
+  <span class="empty-icon">{{ icon('search') }}</span>
+  <h2>No users match</h2>
+  <p>Nobody matches &ldquo;{{ q }}&rdquo;. Try a different spelling.</p>
+  <div class="actions"><a class="btn btn-secondary" href="/users">Show everyone</a></div>
+</div>
+{% endif %}
+<p class="hint">Roles: <strong>Admin</strong> does everything. <strong>HR</strong> manages employees and batches and can show ID numbers. <strong>Viewer</strong> can only look.
+  If you are ever locked out, an administrator can run <code>python -m app.scripts.reset_admin_password</code> on the server.</p>
+{% endblock %}

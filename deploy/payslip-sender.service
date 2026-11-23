@@ -1,0 +1,56 @@
+# systemd service for the app. Installed by setup-server.sh to /etc/systemd/system/payslip-sender.service
+# Commands:  sudo systemctl status payslip-sender      sudo journalctl -u payslip-sender -f      sudo systemctl restart payslip-sender
+[Unit]
+Description=Payslip Sender (FastAPI app, exactly ONE process)
+After=network-online.target mariadb.service
+# "Wants" (not "Requires"): if MariaDB is restarted by a security update, the app keeps running instead of being restarted mid-send.
+Wants=network-online.target mariadb.service
+
+[Service]
+Type=simple
+# A dedicated user with no login and no sudo rights.
+User=payslip
+Group=payslip
+WorkingDirectory=/opt/payslip-sender
+# The settings file. The app reads /opt/payslip-sender/.env itself (mode 600, owned by "payslip": only that user can read it).
+# app.server starts ONE uvicorn process on 127.0.0.1 only, never --reload, trusting proxy headers only from 127.0.0.1 (Caddy).
+ExecStart=/opt/payslip-sender/.venv/bin/python -m app.server
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=WEB_CONCURRENCY=1
+
+# Come back by itself after a crash, but not in a tight loop. On every start the app marks payslips that were mid-send as
+# "uncertain" (never re-sent automatically) and resumes queued ones: that is safe to repeat.
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+# Give a running send time to finish its current requests on "systemctl stop".
+TimeoutStopSec=30
+
+# ---- basic sandboxing: the app can only WRITE to the folders listed in ReadWritePaths ----
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+# (MemoryDenyWriteExecute is left out on purpose: some Python extension modules need it off, and it could not be tried on a real server.)
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+UMask=0077
+ReadWritePaths=/var/lib/payslip-sender /var/log/payslip-sender
+
+[Install]
+WantedBy=multi-user.target

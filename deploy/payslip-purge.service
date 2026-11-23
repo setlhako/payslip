@@ -1,0 +1,19 @@
+# Daily clean-up: deletes stored payslip PDFs (SENT_RETENTION_DAYS after a batch finished, BATCH_RETENTION_DAYS at the latest),
+# orphan folders and old login-attempt rows. Started by payslip-purge.timer. Run by hand: sudo systemctl start payslip-purge
+[Unit]
+Description=Payslip Sender: delete old stored payslip files
+After=mariadb.service
+
+[Service]
+Type=oneshot
+User=payslip
+Group=payslip
+WorkingDirectory=/opt/payslip-sender
+ExecStart=/opt/payslip-sender/.venv/bin/python -m app.scripts.purge_old_batches
+Environment=PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+ReadWritePaths=/var/lib/payslip-sender /var/log/payslip-sender

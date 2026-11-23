@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}Import complete - Payslip Sender{% endblock %}
+{% block nav_key %}employees{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Employees', '/employees'), ('Import', '/employees/import'), ('Done', None)]) }}{% endblock %}
+{% block heading %}Import complete{% endblock %}
+{% block lede %}Your employee list has been updated.{% endblock %}
+{% block content %}
+{% with step=4 %}{% include "_stepper.html" %}{% endwith %}
+<div class="card empty is-success">
+  <span class="empty-icon">{{ icon('check-circle') }}</span>
+  <h2>{{ result.new + result.updated }} employee{{ '' if result.new + result.updated == 1 else 's' }} saved</h2>
+  <p class="muted">{{ result.new }} new, {{ result.updated }} updated and {{ result.unchanged }} unchanged.
+    {% if result.errors %}{{ result.errors }} row{{ '' if result.errors == 1 else 's' }} {{ 'was' if result.errors == 1 else 'were' }} skipped because of errors.{% endif %}
+    {% if result.warnings %}{{ result.warnings }} saved row{{ '' if result.warnings == 1 else 's' }} had a warning: check {{ 'it' if result.warnings == 1 else 'them' }} in the list.{% endif %}</p>
+  <div class="actions">
+    <a class="btn btn-primary" href="/employees">View employees</a>
+    <a class="btn btn-secondary" href="/employees/import">Import another file</a>
+  </div>
+</div>
+{% endblock %}

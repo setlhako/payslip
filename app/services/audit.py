@@ -28,6 +28,7 @@ def record(
     entity_id: int | None = None,
     details: str | None = None,
     ip: str | None = None,
+    commit: bool = True,
 ) -> None:
     db.add(
         AuditLog(
@@ -39,4 +40,5 @@ def record(
             ip_address=mask_ip(ip),
         )
     )
-    db.commit()
+    if commit:
+        db.commit()

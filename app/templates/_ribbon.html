@@ -1,0 +1,14 @@
+{# The delivery ribbon: one bar, one segment per status, widths in proportion. Words and numbers follow in the legend, so colour is never the only clue. #}
+{% macro ribbon(counts, order, label) %}
+{% set total = counts.total or 0 %}
+{% set ns = namespace(x=0) %}
+<svg class="ribbon" viewBox="0 0 100 4" preserveAspectRatio="none" role="img" aria-label="{{ label }}" data-ribbon>
+  {% for key in order %}{% set w = ((counts[key] * 100 / total)|round(3)) if total else 0 %}<rect class="seg seg-{{ key }}" data-seg="{{ key }}" x="{{ ns.x|round(3) }}" y="0" width="{{ w }}" height="4"/>{% set ns.x = ns.x + w %}{% endfor %}
+</svg>
+{% endmacro %}
+
+{% macro legend(counts, order, labels) %}
+<ul class="ribbon-legend">
+  {% for key in order %}{% if counts[key] %}<li><span class="swatch swatch-{{ key }}" aria-hidden="true"></span>{{ labels[key] }} <strong class="num">{{ counts[key] }}</strong></li>{% endif %}{% endfor %}
+</ul>
+{% endmacro %}

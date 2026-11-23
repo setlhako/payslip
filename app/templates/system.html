@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}System status - Payslip Sender{% endblock %}
+{% block nav_key %}system{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('System status', None)]) }}{% endblock %}
+{% block heading %}System status{% endblock %}
+{% block lede %}A read-only look at how the app is set up. Settings live in the .env file on the server and cannot be changed here. No secret is ever shown.{% endblock %}
+{% block content %}
+{% if mode == 'live' %}
+<div class="big-mode live" role="status">LIVE <small>Real WhatsApp messages are sent to employees' phones.</small></div>
+{% else %}
+<div class="big-mode mock" role="status">MOCK <small>Nothing is really sent. Delivery statuses are simulated.</small></div>
+{% endif %}
+
+<h2 class="section-title">WhatsApp</h2>
+<dl class="facts">
+  <dt>Mode</dt><dd>{{ 'LIVE' if mode == 'live' else 'MOCK' }}</dd>
+  <dt>Message template</dt><dd>{{ template_name }} <span class="muted">(language {{ template_language }}, {{ 'template message' if send_kind == 'template' else 'plain document message' }})</span></dd>
+  <dt>Allowed-recipients safety list</dt>
+  <dd>{% if allowed_active %}<span class="yes">Active</span>: only {{ allowed_count }} number{{ '' if allowed_count == 1 else 's' }} can receive messages in live mode{% else %}<span class="{{ 'no' if mode == 'live' else '' }}">Not set</span>{% if mode == 'live' %}: every employee in a batch would really receive a message{% endif %}{% endif %}</dd>
+  <dt>Last webhook event received</dt><dd>{% if last_webhook %}{{ last_webhook.strftime('%d %b %Y %H:%M:%S') }} (UTC){% else %}<span class="muted">Never</span>{% endif %}</dd>
+  <dt>Live settings complete</dt><dd>{% if live_ready %}<span class="yes">Yes</span>{% else %}<span class="{{ 'no' if mode == 'live' else '' }}">No</span> <span class="muted">(only needed before switching to live; run <code>python -m app.scripts.check_live_config</code>)</span>{% endif %}</dd>
+</dl>
+
+<h2 class="section-title gap-top">Settings present</h2>
+<dl class="facts">
+  {% for name, ok in settings %}<dt>{{ name }}</dt><dd>{% if ok %}<span class="yes">Yes</span>{% else %}<span class="no">No</span>{% endif %}</dd>{% endfor %}
+</dl>
+<p class="hint">This shows only whether each setting is filled in, never its value.</p>
+
+<h2 class="section-title gap-top">The app</h2>
+<dl class="facts">
+  <dt>Database</dt><dd>{% if database_ok %}<span class="yes">Working</span>{% else %}<span class="no">Problem: the database did not answer</span>{% endif %}</dd>
+  <dt>App version</dt><dd>{{ version }} <span class="muted">({{ environment }})</span></dd>
+  <dt>Batches being prepared (draft or ready)</dt><dd class="num">{{ open_batches }}</dd>
+  <dt>Batches being sent right now</dt><dd class="num">{{ sending_batches }}</dd>
+  <dt>Old batches still holding files</dt><dd class="num">{{ old_batches }} <span class="muted">(older than {{ retention_days }} days: run <code>python -m app.scripts.purge_old_batches</code>)</span></dd>
+</dl>
+{% endblock %}

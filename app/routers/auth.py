@@ -11,8 +11,10 @@ from app.models import User
 from app.models.mixins import utcnow
 from app.security import passwords
 from app.security.auth import require_login
+from app.security.permissions import require
 from app.security.sessions import end_session, get_session_user, start_session
 from app.services import audit, login_limiter
+from app.services.import_preview import store as import_store
 from app.templating import templates
 
 router = APIRouter()
@@ -79,11 +81,12 @@ def login_submit(
     login_limiter.record_success(db, name, ip)
     audit.record(db, "login_success", user_id=user.id, details=f"username '{user.username}'", ip=ip)
     start_session(request, user)  # brand-new session + new CSRF token
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse("/account/password" if user.must_change_password else "/", status_code=303)
 
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(require("account.self"))])
 def logout(request: Request, user: User = Depends(require_login), db: Session = Depends(get_db)):
     audit.record(db, "logout", user_id=user.id, details=f"username '{user.username}'", ip=client_ip(request))
+    import_store.discard_for_user(user.id)
     end_session(request)
     return RedirectResponse("/login", status_code=303)

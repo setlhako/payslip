@@ -1,0 +1,16 @@
+# Nightly encrypted database backup (see backup.sh). Started by payslip-backup.timer. Run by hand: sudo systemctl start payslip-backup
+[Unit]
+Description=Payslip Sender: encrypted database backup
+After=mariadb.service
+
+[Service]
+Type=oneshot
+User=payslip
+Group=payslip
+ExecStart=/opt/payslip-sender/deploy/backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+ReadWritePaths=/var/backups/payslip-sender

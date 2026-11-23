@@ -1,1 +1,2 @@
-"""Payslip Sender application package."""
+"""Payslip Sender."""
+__version__ = "0.9.0"

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the payslip file clean-up every day
+
+[Timer]
+OnCalendar=*-*-* 03:10:00
+RandomizedDelaySec=10min
+# If the server was off at 03:10, run once when it is back.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

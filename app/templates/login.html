@@ -1,16 +1,33 @@
 {% extends "base.html" %}
 {% block title %}Log in - Payslip Sender{% endblock %}
-{% block content %}
-<div class="card narrow">
-  <h1>Log in</h1>
-  {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
-  <form method="post" action="/login" autocomplete="off">
-    {{ csrf_input(request) }}
-    <label for="username">Username</label>
-    <input type="text" id="username" name="username" required autofocus autocomplete="username">
-    <label for="password">Password</label>
-    <input type="password" id="password" name="password" required autocomplete="current-password">
-    <button type="submit">Log in</button>
-  </form>
+{% block page %}
+<div class="login">
+  <main id="main" class="login-form">
+    <div class="inner">
+      <h1>Log in</h1>
+      <p class="muted">Use the HR admin account that was set up for you.</p>
+      {% if error %}
+      <div class="callout callout-error" role="alert">{{ icon('x-circle') }}<div class="callout-text">{{ error }}</div></div>
+      {% endif %}
+      {% include "_flash.html" %}
+      <form method="post" action="/login" autocomplete="off" data-once>
+        {{ csrf_input(request) }}
+        <div class="field">
+          <label for="username">Username</label>
+          <input class="input" type="text" id="username" name="username" required autofocus autocomplete="username" autocapitalize="none" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input class="input" type="password" id="password" name="password" required autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary" type="submit">Log in</button>
+      </form>
+    </div>
+  </main>
+  <section class="login-art" aria-label="About Payslip Sender">
+    <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brand-name">Payslip Sender</span></div>
+    <p class="art-title">Payslips reach the right person, and only that person.</p>
+    <p class="art-note">Every payslip is locked with its owner's own password before it is sent.</p>
+  </section>
 </div>
 {% endblock %}

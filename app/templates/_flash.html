@@ -1,0 +1,7 @@
+{% for kind, message in get_flashes(request) %}
+<div class="flash flash-{{ kind }}" role="{{ 'alert' if kind == 'error' else 'status' }}">
+  {{ icon({'success': 'check-circle', 'error': 'x-circle'}.get(kind, 'info')) }}
+  <div class="flash-text">{{ message }}</div>
+  <button type="button" class="icon-btn flash-close" data-dismiss aria-label="Dismiss this message">{{ icon('x') }}</button>
+</div>
+{% endfor %}

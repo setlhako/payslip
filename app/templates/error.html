@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Error - Payslip Sender{% endblock %}
-{% block content %}
-<div class="card">
-  <h1>{{ status_code }}</h1>
-  <p>{{ message }}</p>
-  <p><a href="/">Back to the start</a></p>
-</div>
+{% block page %}
+<main id="main" class="plain">
+  <div class="card">
+    <h1>{{ 'Page not found' if status_code == 404 else 'Something went wrong' if status_code != 403 else 'Request blocked' }}</h1>
+    <p class="muted">{{ message }}</p>
+    <p><a class="btn btn-secondary" href="/">Back to the dashboard</a></p>
+  </div>
+</main>
 {% endblock %}

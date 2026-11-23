@@ -25,7 +25,9 @@ async def security_headers(request: Request, call_next):
     h["Referrer-Policy"] = "same-origin"
     h["Content-Security-Policy"] = CSP
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    if not request.url.path.startswith("/static/"):
+    if request.url.path.startswith("/static/"):
+        h["Cache-Control"] = "no-cache"  # public files: the browser may keep them but must re-check (ETag) every time
+    else:
         h["Cache-Control"] = "no-store"  # pages may contain personal data: never cache them
     if get_settings().secure_cookies:
         h["Strict-Transport-Security"] = "max-age=31536000"

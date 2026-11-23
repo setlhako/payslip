@@ -1,0 +1,6 @@
+{# {{ crumbs([("Employees", "/employees"), ("Import", None)]) }}: the last item is the current page (no link) #}
+{% macro crumbs(items) %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <ol>{% for text, url in items %}<li>{% if url %}<a href="{{ url }}">{{ text }}</a>{% else %}<span aria-current="page">{{ text }}</span>{% endif %}</li>{% endfor %}</ol>
+</nav>
+{% endmacro %}

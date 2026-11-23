@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% from "_ribbon.html" import ribbon %}
+{% block title %}{{ batch.pay_month_label }} - Sending - Payslip Sender{% endblock %}
+{% block nav_key %}batches{% endblock %}
+{% block head_extra %}<script src="{{ static_url('progress.js') }}" defer></script>{% if active %}<noscript><meta http-equiv="refresh" content="5"></noscript>{% endif %}{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Batches', '/batches'), (batch.pay_month_label, None)]) }}{% endblock %}
+{% block heading %}{{ batch.pay_month_label }}{% endblock %}
+{% block lede %}{{ 'Sending in progress.' if active else 'Sending has finished.' }} Statuses update by themselves.{% endblock %}
+{% block actions %}
+  <a class="btn btn-secondary" href="/batches">{{ icon('chev-left') }}All batches</a>
+  <a class="btn btn-secondary" href="/batches/{{ batch.id }}/report.csv">{{ icon('download') }}Download send report</a>
+{% endblock %}
+{% block content %}
+{% set can_send = can(current_user, 'batches.send') %}
+{% set done_count = counts.delivered + counts.read %}
+{% if mode == 'live' %}<div class="mode-banner mode-live" role="status">LIVE MODE: these messages were sent to real phones.</div>{% endif %}
+{% if batch.send_state == 'halted' %}
+<div class="callout callout-error" role="alert">{{ icon('x-circle') }}<div class="callout-text"><strong>Sending was stopped automatically.</strong> {{ batch.halted_reason }}
+  Queued payslips were put back, nothing else was sent.</div></div>
+{% elif batch.send_state == 'stopped' %}
+<div class="callout callout-warn" role="status">{{ icon('alert') }}<div class="callout-text"><strong>Sending is stopped.</strong> Queued payslips were put back. Press Resume to continue.</div></div>
+{% endif %}
+
+<section class="panel panel-section" aria-label="Delivery progress">
+  <div class="panel-head"><h2>{{ done_count }} of {{ counts.total }} delivered or read</h2><p class="inline-note" data-live-note role="status" aria-live="polite">{% if active %}<span class="live-dot" aria-hidden="true"></span>Updating...{% else %}Finished.{% endif %}</p></div>
+  {{ ribbon(counts, order, done_count ~ ' of ' ~ counts.total ~ ' delivered or read') }}
+</section>
+
+{% if not active %}
+<section class="finish-summary callout {{ 'callout-ok' if not (counts.failed or counts.uncertain or counts.pending) else 'callout-warn' }}" role="status" aria-label="What happened and what to do next">
+  {{ icon('check-circle' if not (counts.failed or counts.uncertain or counts.pending) else 'alert') }}
+  <div class="callout-text">
+    <strong>{% if not (counts.failed or counts.uncertain or counts.pending) %}Sending is finished and nothing needs your attention.{% else %}Sending has finished, but some payslips need a look.{% endif %}</strong>
+    <ul>
+      {% if counts.sent %}<li>{{ counts.sent }} sent and waiting for WhatsApp to confirm delivery. This usually takes a few minutes; the page does not need to stay open.</li>{% endif %}
+      {% if counts.failed %}<li><strong>{{ counts.failed }} failed.</strong> The message beside each one says why. Fix the cause (for example a wrong phone number, or the template), then press <em>Retry failed</em>.</li>{% endif %}
+      {% if counts.uncertain %}<li><strong>{{ counts.uncertain }} uncertain.</strong> WhatsApp gave no clear answer, so the payslip may already have been delivered. Ask the employee first. Only then tick the row and retry, because retrying can deliver it twice.</li>{% endif %}
+      {% if counts.pending %}<li>{{ counts.pending }} not sent (sending was stopped). Press <em>Resume sending</em> to send them.</li>{% endif %}
+      {% if not (counts.failed or counts.uncertain or counts.pending) %}<li>Download the send report below if you need a record.</li>{% endif %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+<section class="summary-bar summary-8" aria-label="Payslips by status" data-counts>
+  {% for key in order %}
+  <div class="summary-item"><div class="summary-count {{ {'failed': 'c-danger', 'uncertain': 'c-warn', 'delivered': 'c-ok', 'read': 'c-ok', 'sent': 'c-info'}.get(key, 'c-neutral') }}" data-count="{{ key }}">{{ counts[key] }}</div><div class="summary-label">{{ labels[key] }}</div></div>
+  {% endfor %}
+</section>
+
+{% if can_send %}
+<div class="send-actions">
+  {% if batch.send_state == 'running' %}
+  <form method="post" action="/batches/{{ batch.id }}/stop" class="inline">{{ csrf_input(request) }}<button class="btn btn-danger" type="submit" data-confirm-title="Stop sending?" data-confirm="Payslips still waiting are put back and nothing more is sent. Ones already being sent finish normally. You can resume later." data-confirm-label="Stop sending">Stop</button></form>
+  {% endif %}
+  {% if batch.send_state in ('stopped', 'halted') and counts.pending %}
+  <form method="post" action="/batches/{{ batch.id }}/resume" class="inline">{{ csrf_input(request) }}<button class="btn btn-primary" type="submit">Resume sending ({{ counts.pending }} waiting)</button></form>
+  {% endif %}
+  {% if counts.failed %}
+  <form method="post" action="/batches/{{ batch.id }}/retry-failed" class="inline">{{ csrf_input(request) }}<button class="btn btn-secondary" type="submit">Retry failed ({{ counts.failed }})</button></form>
+  {% endif %}
+</div>
+{% else %}
+<p class="inline-note">You can watch the progress. Only HR and admins can stop, resume or retry.</p>
+{% endif %}
+
+<div class="table-card scroll-sm gap-top" role="region" aria-label="Payslip delivery status" tabindex="0">
+  <table class="data review wide-table" data-status-url="/batches/{{ batch.id }}/status.json" data-send-state="{{ batch.send_state }}" data-active="{{ 1 if active else 0 }}">
+    <caption class="visually-hidden">Each payslip and what happened to it</caption>
+    <thead><tr>
+      <th scope="col">Employee</th><th scope="col">Phone</th><th scope="col">Status</th><th scope="col">What happened</th>{% if can_send %}<th scope="col">Select / actions</th>{% endif %}
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      {% set p = r.p %}
+      <tr data-row-id="{{ p.id }}" data-status="{{ p.status }}">
+        <td class="person-name">{{ r.e.full_name if r.e else '-' }}</td>
+        <td class="num nowrap">{{ r.phone or '-' }}</td>
+        <td><span class="badge badge-{{ p.status }}" data-badge><span class="dot" aria-hidden="true"></span><span data-label>{{ labels[p.status] }}</span></span></td>
+        <td data-detail>{{ r.detail }}</td>
+        {% if can_send %}<td>{% if p.status == 'uncertain' %}<input type="checkbox" name="payslip_ids" value="{{ p.id }}" form="retry-uncertain-form" aria-label="Select this uncertain payslip for retry">{% endif %}{% if p.status == 'failed' %}<form method="post" action="/batches/{{ batch.id }}/payslips/{{ p.id }}/retry" class="inline">{{ csrf_input(request) }}<button class="btn btn-secondary btn-sm" type="submit">Retry</button></form>{% endif %}</td>{% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if counts.uncertain and can_send %}
+<form id="retry-uncertain-form" method="post" action="/batches/{{ batch.id }}/retry-uncertain" class="card gap-top" data-once>
+  {{ csrf_input(request) }}
+  <h2>Uncertain payslips</h2>
+  <p>For these, WhatsApp did not give a clear answer, so the payslip <strong>may already have been delivered</strong>. Check with the employee first.
+     Tick the ones to send again above (the boxes in the table).</p>
+  <div class="callout callout-warn" role="note">{{ icon('alert') }}<div class="callout-text">Retrying an uncertain payslip may deliver it <strong>twice</strong>.</div></div>
+  <label class="choice-line"><input type="checkbox" name="understood" value="on"> I understand it may be delivered twice</label>
+  <div class="form-actions"><button class="btn btn-secondary" type="submit">Retry selected uncertain rows</button></div>
+</form>
+{% endif %}
+{% endblock %}

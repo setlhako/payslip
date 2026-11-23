@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}Review import - Payslip Sender{% endblock %}
+{% block nav_key %}employees{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Employees', '/employees'), ('Import', '/employees/import'), ('Review', None)]) }}{% endblock %}
+{% block heading %}Review your import{% endblock %}
+{% block lede %}Nothing has been saved yet. Rows with errors are skipped; every other row is saved together in one step.{% endblock %}
+{% block actions %}
+  <form method="post" action="/employees/import/cancel" class="inline">
+    {{ csrf_input(request) }}
+    <button type="submit" class="btn btn-secondary">Cancel import</button>
+  </form>
+  {% if to_save %}
+  <form method="post" action="/employees/import/confirm" class="inline" data-once>
+    {{ csrf_input(request) }}
+    <button type="submit" class="btn btn-primary">{{ icon('check') }}Save {{ to_save }} employee{{ '' if to_save == 1 else 's' }}</button>
+  </form>
+  {% else %}
+  <button type="button" class="btn btn-primary" disabled>Nothing to save</button>
+  {% endif %}
+{% endblock %}
+{% block content %}
+{% with step=2 %}{% include "_stepper.html" %}{% endwith %}
+
+<section class="summary-bar" aria-label="Summary of this import">
+  <div class="summary-item"><div class="summary-count c-ok">{{ summary.new }}</div><div class="summary-label">New</div></div>
+  <div class="summary-item"><div class="summary-count c-info">{{ summary.updated }}</div><div class="summary-label">Updated</div></div>
+  <div class="summary-item"><div class="summary-count c-neutral">{{ summary.unchanged }}</div><div class="summary-label">Unchanged</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-warn' if summary.warnings else 'c-neutral' }}">{{ summary.warnings }}</div><div class="summary-label">With warnings</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-danger' if summary.errors else 'c-neutral' }}">{{ summary.errors }}</div><div class="summary-label">Errors (skipped)</div></div>
+</section>
+
+{% if summary.errors %}
+<div class="callout callout-error" role="status">{{ icon('x-circle') }}<div class="callout-text">{{ summary.errors }} row{{ '' if summary.errors == 1 else 's' }} will be skipped because of errors. Fix them in your file and import again if you need them. Rows with problems are listed first.</div></div>
+{% endif %}
+{% for n in notices %}
+<div class="callout callout-info" role="status">{{ icon('info') }}<div class="callout-text">{{ n }}</div></div>
+{% endfor %}
+
+<div class="toolbar">
+  <nav class="chips" aria-label="Which rows to show">
+    <a class="chip" href="?show=all" {% if show == 'all' %}aria-current="true"{% endif %}>All rows <span class="count">{{ summary.total }}</span></a>
+    <a class="chip" href="?show=problems" {% if show == 'problems' %}aria-current="true"{% endif %}>Warnings and errors <span class="count">{{ summary.warnings + summary.errors }}</span></a>
+    <a class="chip" href="?show=changes" {% if show == 'changes' %}aria-current="true"{% endif %}>Will be saved <span class="count">{{ to_save }}</span></a>
+  </nav>
+  <p class="muted">ID numbers are not shown here. When you save, full numbers are stored encrypted.</p>
+</div>
+
+{% if planned %}
+<div class="table-card scroll-sm" role="region" aria-label="Rows in this import" tabindex="0">
+  <table class="data wide-table">
+    <caption class="visually-hidden">Rows in this import</caption>
+    <thead>
+      <tr>
+        <th scope="col">Row</th>
+        <th scope="col">Name</th>
+        <th scope="col" class="hide-sm">Phone</th>
+        <th scope="col" class="hide-sm">ID</th>
+        <th scope="col">Result</th>
+        <th scope="col">Details</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in planned %}
+      <tr class="{{ 'row-error' if p.action == 'error' }}">
+        <td class="num">{{ p.row.row_number }}</td>
+        <td>
+          <div class="person">
+            {{ avatar(p.row.first_name, p.row.surname, p.row.row_number) }}
+            <div><div class="person-name">{{ p.row.first_name }} {{ p.row.surname }}</div>{% if p.row.employee_code %}<div class="sub">Code {{ p.row.employee_code }}</div>{% endif %}</div>
+          </div>
+        </td>
+        <td class="hide-sm num nowrap">{{ p.row.phone or '-' }}</td>
+        <td class="hide-sm nowrap">{% if p.row.id_type %}{{ {'omang': 'Omang', 'passport': 'Passport'}[p.row.id_type] }} <span class="muted" aria-label="hidden">{{ id_mask }}</span>{% else %}-{% endif %}</td>
+        <td>
+          <div class="badges">
+            {{ badge(p.action, {'new': 'New', 'update': 'Updated', 'unchanged': 'Unchanged', 'error': 'Error'}[p.action]) }}
+            {% if p.warnings and p.action != 'error' %}{{ badge('warning', 'Warning') }}{% endif %}
+          </div>
+        </td>
+        <td>
+          <ul class="msgs">
+            {% for m in p.errors %}<li class="is-error">{{ m }}</li>{% endfor %}
+            {% for m in p.changes %}<li>{{ m }}</li>{% endfor %}
+            {% if p.action != 'error' %}{% for m in p.warnings %}<li class="is-warn">{{ m }}</li>{% endfor %}{% endif %}
+          </ul>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="table-card empty">
+  <span class="empty-icon">{{ icon('check-circle') }}</span>
+  <h2>No rows in this view</h2>
+  <p>Nothing matches this filter. Choose another one above.</p>
+</div>
+{% endif %}
+{% endblock %}

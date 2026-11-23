@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}New batch - Payslip Sender{% endblock %}
+{% block nav_key %}batches{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Batches', '/batches'), ('New batch', None)]) }}{% endblock %}
+{% block heading %}New batch{% endblock %}
+{% block lede %}Name the pay run and upload its payslip PDFs. You check every match before anything is marked ready.{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/batches">{{ icon('chev-left') }}Back to batches</a>{% endblock %}
+{% block content %}
+<div class="card narrow">
+  {% if error %}<div class="callout callout-error" role="alert">{{ icon('x-circle') }}<div class="callout-text">{{ error }}</div></div>{% endif %}
+  <form method="post" action="/batches/new" enctype="multipart/form-data" data-once novalidate>
+    {{ csrf_input(request) }}
+    <div class="field">
+      <label for="pay_month_label">Pay month</label>
+      <input class="input" type="text" id="pay_month_label" name="pay_month_label" value="{{ label }}" placeholder="November 2026" required maxlength="60"
+             aria-describedby="label-hint{% if label_error %} label-error{% endif %}" {% if label_error %}aria-invalid="true"{% endif %}>
+      <p class="hint" id="label-hint">The month and year of this pay run, for example November 2026. It appears in the WhatsApp message later.</p>
+      {% if label_error %}<p class="field-error" id="label-error">{{ icon('alert', 'sm') }}{{ label_error }}</p>{% endif %}
+    </div>
+    {% set uid = 'new' %}
+    {% include "_upload_fields.html" %}
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">{{ icon('upload') }}Create batch and upload</button>
+      <a class="btn btn-secondary" href="/batches">Cancel</a>
+    </div>
+  </form>
+  <hr>
+  <h3>How your files are handled</h3>
+  <ul class="msgs">
+    <li>PDFs are stored in a private folder under random names, and are never reachable from the website.</li>
+    <li>Nothing is sent to anyone from this screen. You review every match first.</li>
+    <li>Stored files are deleted when you delete the batch, and automatically {{ retention_days }} days after the batch was created.</li>
+  </ul>
+</div>
+{% endblock %}

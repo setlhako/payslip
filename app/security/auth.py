@@ -11,10 +11,20 @@ class LoginRequired(Exception):
     """Raised when a page needs a login; main.py turns it into a redirect to /login."""
 
 
+class PasswordChangeRequired(Exception):
+    """The user is on a temporary password and must choose their own first; main.py redirects to /account/password."""
+
+
+# The only pages a user on a temporary password may use before choosing their own password.
+PENDING_ALLOWED_PATHS = {"/account/password", "/logout"}
+
+
 def require_login(request: Request, db: Session = Depends(get_db)) -> User:
     """Use on every protected router: APIRouter(dependencies=[Depends(require_login)]).
     Can also be taken as a parameter (`user: User = Depends(require_login)`) to get the current user."""
     user = get_session_user(request, db)
     if user is None:
         raise LoginRequired()
+    if user.must_change_password and request.url.path not in PENDING_ALLOWED_PATHS:
+        raise PasswordChangeRequired()
     return user

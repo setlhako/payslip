@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}Send {{ batch.pay_month_label }} - Payslip Sender{% endblock %}
+{% block nav_key %}batches{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Batches', '/batches'), (batch.pay_month_label, '/batches/' ~ batch.id), ('Send', None)]) }}{% endblock %}
+{% block heading %}Send {{ batch.pay_month_label }}{% endblock %}
+{% block lede %}This is the last step. Read the summary, then type the pay month to confirm.{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/batches/{{ batch.id }}/confirm">{{ icon('chev-left') }}Back</a>{% endblock %}
+{% block content %}
+{% if mode == 'live' %}
+<div class="mode-banner mode-live big" role="alert">LIVE MODE: real WhatsApp messages will be sent to your employees' phones.</div>
+{% else %}
+<div class="mode-banner mode-mock big" role="status">MOCK MODE: nothing is really sent. Delivery statuses are simulated.</div>
+{% endif %}
+
+<section class="summary-bar summary-3" aria-label="What will happen">
+  <div class="summary-item"><div class="summary-count">{{ files }}</div><div class="summary-label">Payslips to send</div></div>
+  <div class="summary-item"><div class="summary-count c-neutral">{{ without_count }}</div><div class="summary-label">Active employees with no payslip</div></div>
+  <div class="summary-item"><div class="summary-count c-neutral">{{ 'Template' if send_kind == 'template' else 'Document' }}</div><div class="summary-label">Message type{% if send_kind == 'template' %} ({{ template_name }}){% endif %}</div></div>
+</section>
+
+{% if mode == 'live' and allowed_count %}
+<div class="callout callout-info" role="status">{{ icon('info') }}<div class="callout-text">Test mode is on: only {{ allowed_count }} allowed number{{ '' if allowed_count == 1 else 's' }} (WHATSAPP_ALLOWED_RECIPIENTS) can receive messages.
+  {% if blocked_count %}<strong>{{ blocked_count }} payslip{{ '' if blocked_count == 1 else 's' }} go to numbers that are not on the list and will fail.</strong>{% else %}All recipients in this batch are on the list.{% endif %}</div></div>
+{% elif mode == 'live' %}
+<div class="callout callout-warn" role="status">{{ icon('alert') }}<div class="callout-text">No allowed-recipients list is set, so every employee in this batch will really receive a message.</div></div>
+{% endif %}
+{% if mode == 'mock' %}
+<div class="callout callout-info" role="status">{{ icon('info') }}<div class="callout-text">To try the unhappy paths in mock mode, give an employee a phone number ending in <strong>000</strong> (not on WhatsApp), <strong>111</strong> (rate limit) or <strong>222</strong> (timeout: uncertain).</div></div>
+{% endif %}
+
+<form method="post" action="/batches/{{ batch.id }}/send" class="card narrow gap-top" data-once>
+  {{ csrf_input(request) }}
+  <div class="field">
+    <label for="confirm_label">Type <strong>{{ batch.pay_month_label }}</strong> to confirm</label>
+    <input class="input" type="text" id="confirm_label" name="confirm_label" autocomplete="off" required placeholder="{{ batch.pay_month_label }}">
+    <p class="hint">Each payslip is password-protected with the employee's ID password and sent once. You can stop at any time, and nothing is ever sent twice unless you ask for it.</p>
+  </div>
+  <div class="form-actions">
+    <button class="btn {{ 'btn-danger' if mode == 'live' else 'btn-primary' }}" type="submit">{{ icon('upload') }}Send {{ files }} payslip{{ '' if files == 1 else 's' }}{{ ' (LIVE)' if mode == 'live' else ' (mock)' }}</button>
+    <a class="btn btn-secondary" href="/batches/{{ batch.id }}/confirm">Cancel</a>
+  </div>
+</form>
+{% endblock %}

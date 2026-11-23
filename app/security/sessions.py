@@ -1,7 +1,8 @@
 """Login sessions stored in a signed cookie.
 
 The cookie holds only: user id, when the session started, when it was last used, a fingerprint of the
-password hash (so changing the password logs old sessions out) and the CSRF token. No secrets.
+password hash (so changing the password logs old sessions out), the user's session version ("sign out everywhere"
+bumps it) and the CSRF token. No secrets.
 Rules: expires after SESSION_IDLE_MINUTES without activity, and after SESSION_ABSOLUTE_HOURS in total.
 """
 import hashlib
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import User
 
-UID, STARTED, LAST_SEEN, PW_FP, CSRF = "uid", "iat", "seen", "pwf", "csrf_token"
+UID, STARTED, LAST_SEEN, PW_FP, CSRF, VERSION = "uid", "iat", "seen", "pwf", "csrf_token", "sv"
 
 
 def now() -> float:
@@ -36,6 +37,7 @@ def start_session(request: Request, user: User) -> None:
             STARTED: t,
             LAST_SEEN: t,
             PW_FP: _fingerprint(user.password_hash),
+            VERSION: user.session_version,
             CSRF: secrets.token_urlsafe(32),
         }
     )
@@ -63,7 +65,8 @@ def get_session_user(request: Request, db: Session) -> User | None:
         s.clear()
         return None
     user = db.get(User, uid)
-    if user is None or not user.is_active or s.get(PW_FP) != _fingerprint(user.password_hash):
+    if (user is None or not user.is_active or s.get(PW_FP) != _fingerprint(user.password_hash)
+            or s.get(VERSION, 0) != user.session_version):          # "sign out everywhere" bumps session_version
         s.clear()
         return None
     s[LAST_SEEN] = t

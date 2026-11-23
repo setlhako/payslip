@@ -1,25 +1,50 @@
-# Web framework
-fastapi>=0.115
-uvicorn[standard]>=0.30
-jinja2>=3.1
-python-multipart>=0.0.9     # needed for form + file uploads
-itsdangerous>=2.2           # signed session cookies
+# EXACT versions (the ones the tests pass with). Nothing here floats: a server built next month gets the same code as today.
+# To upgrade on purpose: change a number, run  .\dev.ps1 test  and  .\dev.ps1 audit  (see README, "Dependencies"), then commit.
+# Section 1 = what the app imports directly. Section 2 = what those pull in (pinned too, so nothing changes by surprise).
 
-# Settings
-pydantic-settings>=2.4
+# ---- 1. direct dependencies ----
+fastapi==0.165.0
+uvicorn[standard]==0.54.0
+jinja2==3.1.6
+python-multipart==0.0.34     # form + file uploads
+itsdangerous==2.2.0          # signed session cookies
+pydantic-settings==2.16.3
+SQLAlchemy==2.0.58           # NOT 2.1: its compiled file was blocked by Windows Application Control on the dev PC
+PyMySQL==1.2.4
+alembic==1.20.1
+argon2-cffi==25.1.0
+pypdf==7.1.1
+cryptography==50.0.2         # AES-256 for the PDFs and Fernet for stored ID numbers
+openpyxl==3.1.5
+defusedxml==0.7.1            # makes openpyxl safe against malicious XML inside spreadsheets
+httpx==0.28.1                # WhatsApp Cloud API
+python-dotenv==1.2.4
 
-# Database
-SQLAlchemy>=2.0,<2.1      # 2.1 ships a compiled file that Windows Application Control blocked on this PC
-PyMySQL>=1.1
-alembic>=1.13
-
-# Passwords (admin login)
-argon2-cffi>=23.1
-
-# PDFs and spreadsheets
-pypdf>=5.0
-cryptography>=43            # lets pypdf do AES-256 encryption
-openpyxl>=3.1
-
-# WhatsApp Cloud API
-httpx>=0.27
+# ---- 2. pinned sub-dependencies ----
+annotated-doc==0.0.7
+annotated-types==0.8.0
+anyio==4.16.0
+argon2-cffi-bindings==26.2.0
+certifi==2026.11.20
+cffi==2.1.1
+click==8.5.1
+colorama==0.4.6; sys_platform == "win32"
+et_xmlfile==2.0.0
+greenlet==3.5.6
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.9.0
+idna==3.20
+Mako==1.4.3
+MarkupSafe==3.0.4
+opentelemetry-api==1.45.2
+pycparser==3.12
+pydantic==2.14.4
+pydantic_core==2.50.5
+PyYAML==6.0.4
+starlette==1.10.0
+typing-inspection==0.4.5
+typing_extensions==4.16.0
+uvloop==0.23.0; sys_platform != "win32"
+watchfiles==1.3.0
+websockets==17.4

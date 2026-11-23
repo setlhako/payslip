@@ -1,0 +1,86 @@
+# Caddy reverse proxy for Payslip Sender.   Template: setup-server.sh (or you, by hand) replaces the two __WORDS__ below and
+# installs the result as /etc/caddy/Caddyfile.   Check it with:  caddy validate --config /etc/caddy/Caddyfile
+# Reload after editing:  sudo systemctl reload caddy
+#
+# What Caddy does for you:
+#   * gets and renews the HTTPS certificate by itself (Let's Encrypt) as soon as __DOMAIN__ points at this server and ports 80/443 are open
+#   * redirects http:// to https:// automatically
+#   * sends HSTS, compresses text, hides the "Server" header, limits request sizes, writes an access log WITHOUT query strings
+#   * forwards to the app on 127.0.0.1:8000 (the app listens nowhere else, so nobody can skip HTTPS)
+
+{
+	# Let's Encrypt sends expiry warnings here. Replaced by setup-server.sh.
+	email __EMAIL__
+
+	servers {
+		timeouts {
+			# Drop clients that open a connection and then send their request very slowly.
+			read_header 15s
+			idle 2m
+		}
+	}
+}
+
+__DOMAIN__ {
+	encode zstd gzip
+
+	header {
+		# Browsers will use HTTPS only for the next year. (The app sends the same header; this keeps it even on error pages.)
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# ------------------------------------------------------------------------------------------------------------------
+	# OPTIONAL: only let the office through (OFF by default: remove the leading "#" from the lines below to switch it on).
+	# Everything EXCEPT /webhook/whatsapp (Meta must reach it, it checks its own signature) and /health stays hidden from every
+	# other address, which then gets a plain "404 Not Found".
+	# Put YOUR office / home addresses after "remote_ip" (single addresses or ranges like 203.0.113.0/24, separated by spaces).
+	# Find yours at https://www.whatismyip.com . If your address changes, edit this and run: sudo systemctl reload caddy
+	# Locked yourself out? SSH in and put the "#" back.
+	# (This works because Caddy is the first thing the internet reaches. If you ever put a load balancer or CDN in front, the
+	# address Caddy sees is theirs and this block must change.)
+	#
+	# @outsiders {
+	# 	not remote_ip 203.0.113.10 198.51.100.0/24
+	# 	not path /webhook/whatsapp /health
+	# }
+	# respond @outsiders "Not Found" 404
+	# ------------------------------------------------------------------------------------------------------------------
+
+	# Access log: one JSON line per request, rotated, WITHOUT query strings (they can hold search words or one-time tokens) and
+	# without cookies or authorization headers. Read it with: sudo tail -f /var/log/caddy/payslip-access.log
+	log {
+		output file /var/log/caddy/payslip-access.log {
+			roll_size 10MiB
+			roll_keep 10
+			roll_keep_for 720h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp \?.* ""
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>headers>X-Hub-Signature-256 delete
+				resp_headers>Set-Cookie delete
+			}
+		}
+	}
+
+	# PDF uploads (one batch may hold up to 200 MB; the app allows 220 MB with form overhead): allow a little more here.
+	@uploads path /batches/new /batches/*/upload
+	handle @uploads {
+		request_body {
+			max_size 230MB
+		}
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# Everything else (forms, employee imports of up to about 1 MB, Meta's webhook of up to 2 MB).
+	handle {
+		request_body {
+			max_size 3MB
+		}
+		reverse_proxy 127.0.0.1:8000
+	}
+}

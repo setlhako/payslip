@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}{{ 'Edit employee' if employee else 'Add employee' }} - Payslip Sender{% endblock %}
+{% block nav_key %}employees{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Employees', '/employees'), ('Edit ' ~ employee.first_name ~ ' ' ~ employee.surname if employee else 'Add employee', None)]) }}{% endblock %}
+{% block heading %}{{ employee.first_name ~ ' ' ~ employee.surname if employee else 'Add employee' }}{% endblock %}
+{% block lede %}{{ 'Change this person\'s details. Nothing is saved until you press Save.' if employee else 'Add one person. To add many at once, use Import.' }}{% endblock %}
+{% block actions %}
+  <a class="btn btn-secondary" href="/employees">{{ icon('chev-left') }}Back to employees</a>
+{% endblock %}
+{% block content %}
+<div class="card narrow">
+  {% if employee and employee.has_full_id %}
+  <form method="post" action="/employees/reveal-ids" data-reveal-form hidden>
+    {{ csrf_input(request) }}
+    <input type="hidden" name="employee_id" value="{{ employee.id }}">
+  </form>
+  <div class="callout callout-error" role="alert" data-reveal-error hidden>{{ icon('x-circle') }}<div class="callout-text" data-reveal-error-text></div></div>
+  {% endif %}
+  {% if errors %}
+  <div class="callout callout-error" role="alert">{{ icon('x-circle') }}<div class="callout-text">Please fix the {{ errors|length }} highlighted field{{ '' if errors|length == 1 else 's' }} below.</div></div>
+  {% endif %}
+  {% if warnings %}
+  <div class="callout callout-warn" role="alert">
+    {{ icon('alert') }}
+    <div class="callout-text">
+      <strong>Please check before saving</strong>
+      <ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+      <p>If this is correct, press <em>Save anyway</em>. Otherwise change the details first.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="post" autocomplete="off" novalidate data-once>
+    {{ csrf_input(request) }}
+    <input type="hidden" name="ack" value="{{ ack }}">
+
+    <div class="row-2">
+      <div class="field">
+        <label for="first_name">First name</label>
+        <input class="input" type="text" id="first_name" name="first_name" value="{{ form.first_name }}" required
+               {% if errors.first_name %}aria-invalid="true" aria-describedby="first_name-error"{% endif %}>
+        {% if errors.first_name %}<p class="field-error" id="first_name-error">{{ icon('alert', 'sm') }}{{ errors.first_name }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="surname">Surname</label>
+        <input class="input" type="text" id="surname" name="surname" value="{{ form.surname }}" required
+               {% if errors.surname %}aria-invalid="true" aria-describedby="surname-error"{% endif %}>
+        {% if errors.surname %}<p class="field-error" id="surname-error">{{ icon('alert', 'sm') }}{{ errors.surname }}</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="phone">WhatsApp phone number <span class="optional">(optional)</span></label>
+      <input class="input" type="text" id="phone" name="phone" value="{{ form.phone }}" inputmode="tel"
+             aria-describedby="phone-hint{% if errors.phone %} phone-error{% endif %}" {% if errors.phone %}aria-invalid="true"{% endif %}>
+      <p class="hint" id="phone-hint">For example 71234567 or +26771234567. Numbers from other countries start with + and the country code.</p>
+      {% if errors.phone %}<p class="field-error" id="phone-error">{{ icon('alert', 'sm') }}{{ errors.phone }}</p>{% endif %}
+    </div>
+
+    <h2 class="fieldset-title">ID and payslip password</h2>
+    {% if employee and employee.id_last4 %}
+    <div class="secret-line">
+      <span>Saved: {{ employee.id_type_label }}</span>
+      {% if employee.has_full_id %}
+      <span class="secret" data-id-slot="{{ employee.id }}">{{ id_mask }}</span>
+      <button type="button" class="btn btn-secondary btn-sm needs-js" data-toggle-ids data-show-label="Show ID" data-hide-label="Hide ID" aria-pressed="false">{{ icon('eye') }}<span data-toggle-label>Show ID</span></button>
+      {% else %}
+      <span class="secret">&bull;&bull;&bull;&bull;{{ employee.id_last4 }}</span>
+      <span class="id-note">full ID not imported yet: type the full number below to save it</span>
+      {% endif %}
+    </div>
+    {% endif %}
+    <div class="row-2">
+      <div class="field">
+        <label for="id_type">ID type</label>
+        <select class="select" id="id_type" name="id_type" aria-describedby="id-hint{% if errors.id_type %} id_type-error{% endif %}" {% if errors.id_type %}aria-invalid="true"{% endif %}>
+          <option value="" {% if not form.id_type %}selected{% endif %}>Not set</option>
+          <option value="omang" {% if form.id_type == 'omang' %}selected{% endif %}>Omang</option>
+          <option value="passport" {% if form.id_type == 'passport' %}selected{% endif %}>Passport</option>
+        </select>
+        {% if errors.id_type %}<p class="field-error" id="id_type-error">{{ icon('alert', 'sm') }}{{ errors.id_type }}</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="id_number">{{ 'New ID number' if employee and employee.id_last4 else 'ID number' }} <span class="optional">(optional)</span></label>
+        <input class="input" type="text" id="id_number" name="id_number" value="" autocomplete="off" autocapitalize="characters" spellcheck="false"
+               placeholder="{{ 'Leave empty to keep the saved ID' if employee and employee.id_last4 else '' }}"
+               {% if errors.id_number %}aria-invalid="true" aria-describedby="id-hint id_number-error"{% else %}aria-describedby="id-hint"{% endif %}>
+        {% if errors.id_number %}<p class="field-error" id="id_number-error">{{ icon('alert', 'sm') }}{{ errors.id_number }}</p>{% endif %}
+      </div>
+    </div>
+    <p class="hint" id="id-hint">
+      Type the full number. It is stored encrypted, and you can show it again here or in the employee list (every time is recorded).
+      Its last 4 characters (letters in capitals, for example AB12) become the password that opens this person's payslip PDF.
+    </p>
+
+    <div class="field">
+      <label for="employee_code">Employee code <span class="optional">(optional)</span></label>
+      <input class="input" type="text" id="employee_code" name="employee_code" value="{{ form.employee_code }}"
+             aria-describedby="code-hint{% if errors.employee_code %} code-error{% endif %}" {% if errors.employee_code %}aria-invalid="true"{% endif %}>
+      <p class="hint" id="code-hint">Useful when two people share a name. Each code can be used once.</p>
+      {% if errors.employee_code %}<p class="field-error" id="code-error">{{ icon('alert', 'sm') }}{{ errors.employee_code }}</p>{% endif %}
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">{{ 'Save anyway' if warnings else 'Save changes' if employee else 'Add employee' }}</button>
+      <a class="btn btn-secondary" href="/employees">Cancel</a>
+    </div>
+  </form>
+
+  {% if employee %}
+  <hr>
+  <div class="secret-line">
+    <span>Status</span>
+    {{ badge('active', 'Active') if employee.active else badge('inactive', 'Inactive') }}
+  </div>
+  <form method="post" action="/employees/{{ employee.id }}/{{ 'deactivate' if employee.active else 'activate' }}">
+    {{ csrf_input(request) }}
+    {% if employee.active %}
+    <p class="hint">A deactivated person is hidden from the default list and skipped when sending. Nothing is deleted, and you can reactivate them at any time.</p>
+    <button type="submit" class="btn btn-danger">{{ icon('user-off') }}Deactivate</button>
+    {% else %}
+    <button type="submit" class="btn btn-secondary">{{ icon('user-on') }}Reactivate</button>
+    {% endif %}
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

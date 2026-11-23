@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}Confirm {{ batch.pay_month_label }} - Payslip Sender{% endblock %}
+{% block nav_key %}batches{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Batches', '/batches'), (batch.pay_month_label, '/batches/' ~ batch.id), ('Confirm', None)]) }}{% endblock %}
+{% block heading %}Confirm {{ batch.pay_month_label }}{% endblock %}
+{% block lede %}Last check before this batch can be marked ready. Nothing is sent to anyone yet.{% endblock %}
+{% block actions %}
+  <a class="btn btn-secondary" href="/batches/{{ batch.id }}">{{ icon('chev-left') }}Back to the review</a>
+  {% if can(current_user, 'batches.send') %}
+  {% if batch.status == 'ready' %}
+  <a class="btn btn-primary" href="/batches/{{ batch.id }}/send">{{ icon('upload') }}Send payslips</a>
+  {% else %}
+  <button type="button" class="btn btn-secondary" disabled title="Mark the batch ready first">{{ icon('lock') }}Send payslips</button>
+  {% endif %}
+  {% endif %}
+{% endblock %}
+{% block content %}
+<section class="summary-bar summary-6" aria-label="Summary">
+  <div class="summary-item"><div class="summary-count">{{ counts.total }}</div><div class="summary-label">Files</div></div>
+  <div class="summary-item"><div class="summary-count c-ok">{{ counts.exact + counts.confirmed }}</div><div class="summary-label">Matched</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-warn' if counts.needs_review else 'c-neutral' }}">{{ counts.needs_review }}</div><div class="summary-label">Needs review</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-danger' if counts.possible_mismatch else 'c-neutral' }}">{{ counts.possible_mismatch }}</div><div class="summary-label">Possible mismatch</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-danger' if counts.unmatched else 'c-neutral' }}">{{ counts.unmatched }}</div><div class="summary-label">Unmatched</div></div>
+  <div class="summary-item"><div class="summary-count {{ 'c-danger' if counts.invalid else 'c-neutral' }}">{{ counts.invalid }}</div><div class="summary-label">Invalid file</div></div>
+</section>
+
+{% if batch.status == 'ready' %}
+<div class="callout callout-ok" role="status">{{ icon('check-circle') }}
+  <div class="callout-text">Marked <strong>ready to send</strong>{% if batch.ready_at %} on {{ batch.ready_at.strftime('%d %b %Y %H:%M') }} (UTC){% endif %}. Use <strong>Send payslips</strong> above when you are ready.
+    {% if can(current_user, 'batches.manage') %}<form method="post" action="/batches/{{ batch.id }}/reopen" class="inline">{{ csrf_input(request) }}<button class="btn btn-secondary btn-sm" type="submit">Reopen to make changes</button></form>{% endif %}
+  </div>
+</div>
+{% elif blockers %}
+<div class="callout callout-warn" role="alert">{{ icon('alert') }}
+  <div class="callout-text"><strong>Not ready yet</strong>
+    <ul>{% for b in blockers %}<li>{{ b }}</li>{% endfor %}</ul>
+    <p><a href="/batches/{{ batch.id }}?show=problems">Show the files that need attention</a></p>
+  </div>
+</div>
+{% endif %}
+
+<h2 class="section-title">What will be sent</h2>
+<p class="muted">{{ listing|length }} file{{ '' if listing|length == 1 else 's' }}. {{ without_count }} active employee{{ '' if without_count == 1 else 's' }} will not get a payslip from this batch.</p>
+{% if listing %}
+<div class="table-card scroll-sm" role="region" aria-label="Files and their employees" tabindex="0">
+  <table class="data wide-table">
+    <caption class="visually-hidden">Each file and the employee it goes to</caption>
+    <thead><tr><th scope="col">File</th><th scope="col">Employee</th><th scope="col">Phone</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+    {% for v in listing %}
+      <tr class="{{ 'row-attention' if v.problems }}">
+        <td class="file-name">{{ v.p.original_filename }}</td>
+        <td>{% if v.employee %}{{ v.employee.full_name }}{% else %}<span class="muted">Not matched</span>{% endif %}</td>
+        <td class="num nowrap">{% if v.employee and v.employee.phone %}{{ v.phone }}{% else %}-{% endif %}</td>
+        <td>{% if v.problems %}{{ badge(v.status, v.label) }}<div class="file-meta">{{ v.problems[0].text }}</div>{% else %}<span class="ready-ok">{{ icon('check-circle') }}Ready</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if batch.status == 'draft' and can(current_user, 'batches.manage') %}
+<form method="post" action="/batches/{{ batch.id }}/ready" class="card gap-top" data-once>
+  {{ csrf_input(request) }}
+  <div class="field">
+    <label class="choice-line"><input type="checkbox" name="checked" value="on" {% if blockers %}disabled{% endif %}> I have checked the matches</label>
+    <p class="hint">Tick this to confirm that each file above goes to the right employee.</p>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit" {% if blockers %}disabled{% endif %}>{{ icon('check') }}Mark as ready to send</button>
+    <a class="btn btn-secondary" href="/batches/{{ batch.id }}">Back to the review</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

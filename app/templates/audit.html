@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}Audit log - Payslip Sender{% endblock %}
+{% block nav_key %}audit{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Audit log', None)]) }}{% endblock %}
+{% block heading %}Audit log{% endblock %}
+{% block lede %}Who did what, and when. Entries never contain ID numbers, passwords, tokens or full phone numbers.{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="{{ export_url }}">{{ icon('download') }}Download CSV{% if filtered %} of this view{% endif %}</a>{% endblock %}
+{% block content %}
+{% for p in problems %}<div class="callout callout-info" role="status">{{ icon('info') }}<div class="callout-text">{{ p }}</div></div>{% endfor %}
+<form class="filters" method="get" action="/audit" role="search" aria-label="Filter the audit log">
+  <div class="field"><label for="date_from">From date</label><input class="input" type="date" id="date_from" name="date_from" value="{{ f.date_from.isoformat() if f.date_from else '' }}"></div>
+  <div class="field"><label for="date_to">To date</label><input class="input" type="date" id="date_to" name="date_to" value="{{ f.date_to.isoformat() if f.date_to else '' }}"></div>
+  <div class="field">
+    <label for="user">Person</label>
+    <select class="select" id="user" name="user">
+      <option value="">Everyone</option>
+      <option value="system" {% if f.user == 'system' %}selected{% endif %}>System (no signed-in user)</option>
+      {% for u in users %}<option value="{{ u.id }}" {% if f.user == u.id|string %}selected{% endif %}>{{ u.display_name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="action">What happened</label>
+    <select class="select" id="action" name="action">
+      <option value="">Anything</option>
+      {% for code, text in actions %}<option value="{{ code }}" {% if f.action == code %}selected{% endif %}>{{ text }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field wide"><label for="q">Search</label><input class="input" type="search" id="q" name="q" value="{{ f.q }}" placeholder="Words in the entry, or a username"></div>
+  <div class="actions"><button class="btn btn-primary" type="submit">Apply</button>{% if filtered %}<a class="btn btn-secondary" href="/audit">Clear</a>{% endif %}</div>
+</form>
+
+<p class="muted num" aria-live="polite">{{ total }} entr{{ 'y' if total == 1 else 'ies' }}{% if filtered %} match{{ 'es' if total == 1 else '' }} your filters{% endif %}. Times are UTC.</p>
+{% if rows %}
+<div class="table-card scroll-sm" role="region" aria-label="Audit entries" tabindex="0">
+  <table class="data wide-table">
+    <caption class="visually-hidden">Audit entries, newest first</caption>
+    <thead>
+      <tr><th scope="col">When</th><th scope="col">Person</th><th scope="col">What happened</th><th scope="col">About</th><th scope="col">Details</th><th scope="col" class="hide-sm">Address</th></tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="num nowrap"><time datetime="{{ r.when.isoformat() }}">{{ r.when.strftime('%d %b %Y %H:%M:%S') }}</time></td>
+        <td class="nowrap">{{ r.user }}</td>
+        <td><strong>{{ r.label }}</strong><div class="file-meta">{{ r.action }}</div></td>
+        <td class="nowrap">{{ r.target or '-' }}</td>
+        <td>{{ r.details or '-' }}</td>
+        <td class="hide-sm num nowrap">{{ r.ip or '-' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if pages > 1 %}
+  <div class="table-foot">
+    <p class="muted num">Page {{ f.page }} of {{ pages }}</p>
+    <nav class="pager" aria-label="Pagination">
+      {% if f.page > 1 %}<a class="page-link" href="{{ link(page=f.page - 1) }}" aria-label="Previous page">{{ icon('chev-left') }}</a>{% else %}<span class="page-link is-disabled" aria-hidden="true">{{ icon('chev-left') }}</span>{% endif %}
+      {% for n in range(1, pages + 1) if n == 1 or n == pages or (n - f.page)|abs <= 1 %}
+        {% if n == f.page %}<span class="page-link" aria-current="page"><span class="visually-hidden">Page </span>{{ n }}</span>
+        {% else %}<a class="page-link" href="{{ link(page=n) }}"><span class="visually-hidden">Page </span>{{ n }}</a>{% endif %}
+      {% endfor %}
+      {% if f.page < pages %}<a class="page-link" href="{{ link(page=f.page + 1) }}" aria-label="Next page">{{ icon('chev-right') }}</a>{% else %}<span class="page-link is-disabled" aria-hidden="true">{{ icon('chev-right') }}</span>{% endif %}
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="table-card empty">
+  <span class="empty-icon">{{ icon('log') }}</span>
+  <h2>{{ 'No entries match' if filtered else 'Nothing recorded yet' }}</h2>
+  <p>{{ 'Try wider dates or clear a filter.' if filtered else 'Actions such as logins, imports and sends appear here as they happen.' }}</p>
+  {% if filtered %}<div class="actions"><a class="btn btn-secondary" href="/audit">Clear filters</a></div>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

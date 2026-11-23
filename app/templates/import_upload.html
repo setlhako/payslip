@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}Import employees - Payslip Sender{% endblock %}
+{% block nav_key %}employees{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Employees', '/employees'), ('Import', None)]) }}{% endblock %}
+{% block heading %}Import employees{% endblock %}
+{% block lede %}Add or update many people from an Excel or CSV file. You review everything before anything is saved.{% endblock %}
+{% block actions %}<a class="btn btn-secondary" href="/employees">{{ icon('chev-left') }}Back to employees</a>{% endblock %}
+{% block content %}
+{% with step=1 %}{% include "_stepper.html" %}{% endwith %}
+<div class="card narrow">
+  <h2>Choose your file</h2>
+  <p class="muted">Columns: <strong>first_name, surname, phone, id_number, id_type</strong> (optional) and <strong>employee_code</strong> (optional).
+     The old column name <em>omang</em> still works for id_number.</p>
+  <p><a class="btn btn-secondary btn-sm" href="/employees/import/template">{{ icon('download', 'sm') }}Download import template</a></p>
+
+  {% if error %}
+  <div class="callout callout-error" role="alert">{{ icon('x-circle') }}<div class="callout-text">{{ error }}</div></div>
+  {% endif %}
+  <form method="post" action="/employees/import" enctype="multipart/form-data" data-once>
+    {{ csrf_input(request) }}
+    <div class="filepick">
+      <label for="file">Excel (.xlsx) or CSV file</label>
+      <input type="file" id="file" name="file" accept=".xlsx,.csv" required aria-describedby="file-hint">
+    </div>
+    <p class="hint" id="file-hint">Up to {{ max_rows }} rows. Macro-enabled files (.xlsm) are not accepted.</p>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">{{ icon('upload') }}Upload and review</button>
+    </div>
+  </form>
+
+  <hr>
+  <h3>How your data is handled</h3>
+  <ul class="msgs">
+    <li>The file is read in memory and never saved on the server.</li>
+    <li>Only the last 4 characters of each ID number are kept; the rest is discarded as soon as it is read.</li>
+    <li>People are matched by employee code, or by name when there is no code. Empty phone or ID cells never erase saved data.</li>
+  </ul>
+</div>
+{% endblock %}

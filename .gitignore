@@ -21,3 +21,9 @@ private_storage/*
 .DS_Store
 Thumbs.db
 *.log
+
+# Fake test files made by app.scripts.make_sample_import
+sample_import.*
+
+# Fake payslip PDFs made by app.scripts.make_test_payslips
+test_payslips/

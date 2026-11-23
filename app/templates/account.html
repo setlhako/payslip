@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}My account - Payslip Sender{% endblock %}
+{% block nav_key %}account{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('My account', None)]) }}{% endblock %}
+{% block heading %}My account{% endblock %}
+{% block lede %}Your details, your recent logins, and your password.{% endblock %}
+{% block actions %}<a class="btn btn-primary" href="/account/password">{{ icon('key') }}Change password</a>{% endblock %}
+{% block content %}
+<dl class="facts">
+  <dt>Name</dt><dd>{{ current_user.display_name }}</dd>
+  <dt>Username</dt><dd>{{ current_user.username }}</dd>
+  <dt>Role</dt><dd>{{ badge(current_user.role, role_text) }} <span class="muted">{{ role_help }}</span></dd>
+  <dt>Password last changed</dt><dd>{% if current_user.password_changed_at %}{{ current_user.password_changed_at.strftime('%d %b %Y %H:%M') }} (UTC){% else %}<span class="muted">Not since it was set by an admin</span>{% endif %}</dd>
+</dl>
+
+<h2 class="section-title gap-top">Recent logins</h2>
+{% if logins %}
+<div class="table-card scroll-sm" role="region" aria-label="Your recent logins" tabindex="0">
+  <table class="data">
+    <caption class="visually-hidden">Your most recent successful logins, newest first</caption>
+    <thead><tr><th scope="col">When (UTC)</th><th scope="col">From address (last part hidden)</th></tr></thead>
+    <tbody>
+    {% for l in logins %}
+      <tr><td class="num nowrap">{{ l.created_at.strftime('%d %b %Y %H:%M') }}{% if loop.first %} <span class="muted">(this session)</span>{% endif %}</td><td class="num">{{ l.ip_address or '-' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="hint">If you do not recognise one of these, change your password now and tell an admin.</p>
+{% else %}
+<p class="muted">No logins are recorded yet.</p>
+{% endif %}
+{% endblock %}

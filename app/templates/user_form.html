@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_crumbs.html" import crumbs %}
+{% block title %}{{ 'Edit user' if target else 'Add user' }} - Payslip Sender{% endblock %}
+{% block nav_key %}users{% endblock %}
+{% block breadcrumbs %}{{ crumbs([('Users', '/users'), ('Edit ' ~ target.display_name if target else 'Add user', None)]) }}{% endblock %}
+{% block heading %}{{ 'Edit ' ~ target.display_name if target else 'Add user' }}{% endblock %}
+{% block lede %}{{ 'Change this person\'s name or role.' if target else 'A temporary password is made for them and shown to you once.' }}{% endblock %}
+{% block content %}
+<div class="card narrow">
+  {% if error %}<div class="callout callout-error" role="alert">{{ icon('x-circle') }}<div class="callout-text">{{ error }}</div></div>{% endif %}
+  <form method="post" autocomplete="off" novalidate data-once>
+    {{ csrf_input(request) }}
+    <div class="field">
+      <label for="username">Username</label>
+      <input class="input" type="text" id="username" name="username" value="{{ values.username }}" {% if target %}readonly aria-describedby="username-hint"{% else %}required autocapitalize="none" spellcheck="false" aria-describedby="username-hint"{% endif %}>
+      <p class="hint" id="username-hint">{{ 'The username cannot be changed.' if target else 'Letters, numbers and . _ @ - (3 or more). Not case-sensitive, and it must be unique.' }}</p>
+    </div>
+    <div class="field">
+      <label for="full_name">Full name</label>
+      <input class="input" type="text" id="full_name" name="full_name" value="{{ values.full_name }}" required maxlength="150">
+    </div>
+    <fieldset class="field role-options" {% if is_self %}disabled{% endif %}>
+      <legend class="label">Role</legend>
+      {% for r in roles %}
+      <label class="role-option">
+        <input type="radio" name="role" value="{{ r }}" {% if values.role == r %}checked{% endif %}>
+        <span><strong>{{ role_labels[r] }}</strong><span>{{ role_help[r] }}</span></span>
+      </label>
+      {% endfor %}
+    </fieldset>
+    {% if is_self %}<p class="hint">You cannot change your own role. Ask another admin.</p><input type="hidden" name="role" value="{{ values.role }}">{% endif %}
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">{{ 'Save changes' if target else 'Add user and show temporary password' }}</button>
+      <a class="btn btn-secondary" href="/users">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

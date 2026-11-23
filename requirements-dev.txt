@@ -1,2 +1,11 @@
+# Extra tools for development only (never installed on the server). Exact versions, like requirements.txt.
 -r requirements.txt
-pytest>=8
+pytest==9.2.0
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+Pygments==2.21.0
+fpdf2==2.9.0                 # makes the FAKE test payslip PDFs (python -m app.scripts.make_test_payslips)
+fonttools==4.68.0
+pillow==13.0.0
+pip-audit==2.10.1            # checks the pinned versions against known vulnerabilities (.\dev.ps1 audit)

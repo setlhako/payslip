@@ -27,12 +27,17 @@ class Payslip(TimestampMixin, Base):
     stored_filename: Mapped[str | None] = mapped_column(String(255))
     encrypted_filename: Mapped[str | None] = mapped_column(String(255))
     file_size: Mapped[int | None] = mapped_column(Integer)
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    invalid_reason: Mapped[str | None] = mapped_column(String(255))   # plain-language reason when match_status = invalid
     file_sha256: Mapped[str | None] = mapped_column(String(64))
     files_deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Matching
     match_method: Mapped[str] = mapped_column(String(20), default=MatchMethod.none.value, nullable=False)
-    match_status: Mapped[str] = mapped_column(String(20), default=MatchStatus.unmatched.value, nullable=False)
+    match_status: Mapped[str] = mapped_column(String(20), default=MatchStatus.pending.value, nullable=False)
+    match_score: Mapped[int | None] = mapped_column(Integer)         # 0-100 similarity of the best candidate / chosen employee
+    suggestions: Mapped[str | None] = mapped_column(Text)            # JSON [[employee_id, score], ...] top 3 (ids and numbers only)
+    text_names_employee_id: Mapped[int | None] = mapped_column(Integer)  # possible_mismatch: whose name the PDF text contains
     confirmed: Mapped[bool] = mapped_column(default=False, nullable=False)  # HR has approved this match
     pdf_check: Mapped[str] = mapped_column(String(20), default=PdfCheck.not_checked.value, nullable=False)
 
@@ -40,7 +45,8 @@ class Payslip(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default=PayslipStatus.pending.value, nullable=False, index=True)
     whatsapp_media_id: Mapped[str | None] = mapped_column(String(100))
     whatsapp_message_id: Mapped[str | None] = mapped_column(String(200), index=True)  # webhooks look payslips up by this
-    error: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(Text)             # Meta's message (digits masked) or our own reason
+    error_code: Mapped[str | None] = mapped_column(String(30))  # Meta's numeric code, or LOCAL_... for our own checks
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime)

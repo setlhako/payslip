@@ -150,19 +150,39 @@ def test_health_is_public_and_minimal(client):
     assert r.status_code == 200 and r.json() == {"status": "ok"}
 
 
+def _api_routes(routes):
+    """Yield every real route, also those inside routers added with include_router (FastAPI wraps those)."""
+    for route in routes:
+        if isinstance(route, APIRoute):
+            yield route
+        elif hasattr(route, "original_router"):
+            yield from _api_routes(route.original_router.routes)
+
+
 def test_every_route_requires_login_except_the_public_ones(app):
     """Safety net: a new route added without require_login makes this test fail."""
-    public = {("/health", "GET"), ("/login", "GET"), ("/login", "POST")}
+    # /webhook/whatsapp is public on purpose (Meta cannot log in); it is protected by its verify token / HMAC signature instead
+    public = {("/health", "GET"), ("/login", "GET"), ("/login", "POST"), ("/webhook/whatsapp", "GET"), ("/webhook/whatsapp", "POST")}
 
     def uses_login(dep):
         return dep.call is require_login or any(uses_login(d) for d in dep.dependencies)
 
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
+    routes = list(_api_routes(app.routes))
+    paths = {r.path for r in routes}
+    # guard against this test silently checking nothing
+    assert len(routes) >= 15 and {"/", "/employees", "/employees/import", "/logout"} <= paths
+
+    for route in routes:
         for method in route.methods:
             if (route.path, method) not in public:
                 assert uses_login(route.dependant), f"{method} {route.path} is not protected"
+
+
+def test_protected_pages_redirect_anonymous_visitors(client):
+    for path in ("/", "/employees", "/employees/new", "/employees/1/edit", "/employees/import",
+                 "/employees/import/preview", "/employees/import/template"):
+        r = client.get(path, follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == "/login", path
 
 
 # ---- session expiry --------------------------------------------------------------------------
@@ -204,3 +224,13 @@ def test_security_headers_present(client):
         assert h["referrer-policy"]
         assert "frame-ancestors 'none'" in h["content-security-policy"]
     assert client.get("/login").headers["cache-control"] == "no-store"
+
+
+def test_templates_have_no_inline_scripts_or_styles():
+    """The strict Content-Security-Policy would block them anyway: keep CSS in app/static/style.css."""
+    import re
+    from pathlib import Path
+
+    for path in Path("app/templates").glob("*.html"):
+        html = path.read_text(encoding="utf-8")
+        assert not re.search(r"<style|<script(?![^>]*\ssrc=)|\sstyle=|\son[a-z]+=|javascript:", html), path.name

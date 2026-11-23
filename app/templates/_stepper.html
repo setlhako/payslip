@@ -1,0 +1,8 @@
+<ol class="steps" aria-label="Import progress">
+  {% for n, label in [(1, 'Upload'), (2, 'Review'), (3, 'Done')] %}
+  <li class="{{ 'is-done' if n < step else 'is-current' if n == step else '' }}" {% if n == step %}aria-current="step"{% endif %}>
+    <span class="step-marker">{% if n < step %}{{ icon('check', 'sm') }}<span class="visually-hidden">Completed: </span>{% else %}{{ n }}{% endif %}</span>
+    <span class="step-label">{{ label }}</span>
+  </li>
+  {% endfor %}
+</ol>
