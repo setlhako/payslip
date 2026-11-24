@@ -2,10 +2,10 @@
 {% block title %}Log in - Payslip Sender{% endblock %}
 {% block page %}
 <div class="login">
-  <main id="main" class="login-form">
+  <main id="main" class="login-card">
     <div class="inner">
+      <div class="login-brand"><span class="mark" aria-hidden="true"></span><span class="brand-name">Payslip Sender</span></div>
       <h1>Log in</h1>
-      <p class="muted">Use the HR admin account that was set up for you.</p>
       {% if error %}
       <div class="callout callout-error" role="alert">{{ icon('x-circle') }}<div class="callout-text">{{ error }}</div></div>
       {% endif %}
@@ -24,10 +24,5 @@
       </form>
     </div>
   </main>
-  <section class="login-art" aria-label="About Payslip Sender">
-    <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brand-name">Payslip Sender</span></div>
-    <p class="art-title">Payslips reach the right person, and only that person.</p>
-    <p class="art-note">Every payslip is locked with its owner's own password before it is sent.</p>
-  </section>
 </div>
 {% endblock %}

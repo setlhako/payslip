@@ -59,7 +59,8 @@ def test_error_messages_use_role_alert(logged_in):
 
 def test_login_page_design_and_labels(client):
     html = client.get("/login").text
-    assert 'for="username"' in html and 'for="password"' in html and 'class="login-art"' in html
+    assert 'for="username"' in html and 'for="password"' in html and 'class="login-card"' in html
+    assert "login-art" not in html and "Use the HR admin account" not in html and "Payslips reach" not in html     # just the sign-in card, nothing else
     assert "<h1>Log in</h1>" in html and 'type="password"' in html and 'autocomplete="current-password"' in html
 
 

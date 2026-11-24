@@ -8,6 +8,23 @@ A web app where ONE HR admin uploads employees' payslip PDFs in bulk and sends e
 employee on WhatsApp. The owner is a beginner on Windows (PowerShell, VS Code): explain things in
 simple terms, run commands yourself where possible, and give exact commands for anything they must run.
 
+## Commands (quick reference; details under "Local dev")
+Run from the project root in PowerShell. Use `python -m ...`, never the bare `.exe` launchers (blocked on the dev PC).
+- Run the app: `.\run.ps1` (= `python -m uvicorn app.main:app --reload`; XAMPP MariaDB must be running)
+- All tests: `.\dev.ps1 test` (~3 minutes) or `python -m pytest -q`; one file: `python -m pytest tests/test_ids.py -q`;
+  one test: `python -m pytest tests/test_ids.py::test_name -q`; by keyword: `python -m pytest -k passport -q`
+- Install pinned deps: `.\dev.ps1 install`; security audit: `.\dev.ps1 audit`; production readiness (FAILs on APP_ENV on a dev PC, expected): `.\dev.ps1 check`
+- Migrations: `python -m alembic revision --autogenerate -m "msg"` then `python -m alembic upgrade head` (tests use SQLite `create_all`,
+  so a model change without a migration does NOT fail them)
+- No linter/formatter is configured.
+
+## Architecture in one paragraph
+Routers (`app/routers/`) only handle HTTP and permissions; business logic lives in `app/services/` (pure normalisers `names/phones/ids`,
+import pipeline, matching, sender worker, status path). Cross-cutting guards are app-wide dependencies/middleware in `app/security/`
+(login, CSRF, headers, per-route `require("<permission>")`). The send engine, import-preview store and one-time passwords live in PROCESS
+MEMORY, which is why production must run exactly one process. All WhatsApp traffic goes through the `WhatsAppClient` interface
+(mock by default), and every delivery status, from the worker, the mock or the webhook, flows through `send_status.apply_status_event`.
+
 ## Stack
 - Python 3.11+, FastAPI, Jinja2 templates with simple HTML (no heavy JS framework)
 - MySQL/MariaDB via SQLAlchemy 2.0.x + PyMySQL (utf8mb4), migrations with Alembic
@@ -539,9 +556,7 @@ private_storage/  uploaded/encrypted PDFs (git-ignored)
   `reset_admin_password`, `generate_secret` (writes `SESSION_SECRET` into `.env`), `generate_encryption_key` (writes
   `ID_ENCRYPTION_KEY`, `--rotate` for rotation), `reencrypt_ids`, `make_sample_import` (fake import files).
 - No linter/formatter is configured (no ruff/black/pyproject); match the surrounding style.
-- The WhatsApp/storage settings (`WHATSAPP_*`, `GRAPH_API_VERSION`, `PRIVATE_STORAGE_DIR`, `MAX_UPLOAD_MB`, `SENT_RETENTION_DAYS`) are
-  already defined in `app/config.py` but nothing consumes them until the batch/WhatsApp tasks. Add any new setting to BOTH
-  `app/config.py` and `.env.example`.
+- Add any new setting to BOTH `app/config.py` and `.env.example`.
 
 ## Build status
 - DONE (task 1): project skeleton, settings, models, Alembic + first migration, `/health`.

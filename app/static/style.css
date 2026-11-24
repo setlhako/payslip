@@ -121,7 +121,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; font-size: 90%; }   /* the whole interface is sized in rem: 90% = a slightly more compact screen */
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font-family: var(--font-ui); font-size: 1rem; line-height: 1.5;
@@ -430,22 +430,13 @@ form.inline { display: inline; margin: 0; }
 .section-title { margin: 0 0 12px; }
 .footnote { margin-top: 18px; color: var(--text-muted); }
 
-/* ---- login (the one bold moment: the stripe) ---- */
-.login { display: grid; grid-template-columns: minmax(0, 6fr) minmax(360px, 5fr); min-height: 100vh; }
-.login-art { position: relative; background: var(--sky); color: var(--stripe-ink); padding: 56px 56px 48px; display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden; }
-.login-art::after {
-  content: ""; position: absolute; left: 0; right: 0; top: 60%; height: 150px;
-  background: linear-gradient(to bottom, #fff 0 12%, var(--stripe-ink) 12% 88%, #fff 88% 100%);
-}
-.login-art .brand { padding: 0; }
-.login-art .art-title { font-family: var(--font-display); font-weight: 650; font-size: clamp(1.9rem, 3.2vw, 2.9rem); line-height: 1.08; letter-spacing: -.025em; max-width: 14ch; position: relative; z-index: 1; margin: 13vh 0 0; text-wrap: balance; }
-.login-art .art-note { position: relative; z-index: 1; margin: auto 0 0; max-width: 34ch; font-weight: 500; }
-.login-form { display: flex; align-items: center; justify-content: center; padding: 40px 28px; background: var(--surface); }
-.login-form .inner { width: 100%; max-width: 380px; }
-.login-form h1 { margin-bottom: 6px; }
-.login-form .btn { width: 100%; }
-
-/* plain centred pages (errors) */
+/* ---- login: one centred card, the stripe mark is its only decoration ---- */
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
+.login-card { width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-menu); overflow: hidden; }
+.login-card .inner { padding: 36px 32px 38px; }
+.login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+.login-card h1 { margin-bottom: 18px; }
+.login-card .btn { width: 100%; margin-top: 4px; }
 .plain { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .plain .card { max-width: 520px; width: 100%; }
 
@@ -480,11 +471,6 @@ form.inline { display: inline; margin: 0; }
   .ledger-item { border-left: 0; border-top: 1px solid var(--line); }
   .ledger-item:nth-child(-n+2) { border-top: 0; }
   .ledger-item:nth-child(even) { border-left: 1px solid var(--line); }
-  .login { display: block; }
-  .login-art { min-height: 300px; padding: 26px 22px; }
-  .login-art::after { top: auto; bottom: 22px; height: 44px; }
-  .login-art .art-title { font-size: 1.6rem; margin-top: 18px; }
-  .login-art .art-note { display: none; }
   .row-2 { grid-template-columns: 1fr; }
   .card { padding: 20px; }
   .step-label { display: none; }
