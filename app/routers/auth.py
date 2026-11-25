@@ -28,7 +28,8 @@ def client_ip(request: Request) -> str:
 
 
 def _login_page(request: Request, error: str | None = None, status_code: int = 200):
-    return templates.TemplateResponse(request, "login.html", {"error": error}, status_code=status_code)
+    return templates.TemplateResponse(
+        request, "login.html", {"error": error, "locked": status_code == 429}, status_code=status_code)
 
 
 @router.get("/login", response_class=HTMLResponse)

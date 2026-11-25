@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Employee
-from app.services.employees import apply_values
+from app.services.employees import apply_values, clash_message
 from app.services.id_crypto import IdCryptoError, decrypt_id
 from app.services.import_parser import ParsedRow
 from app.services.names import name_key
@@ -34,11 +34,14 @@ def plan_import(db: Session, rows: list[ParsedRow]) -> list[PlannedRow]:
     by_id = {e.id: e for e in employees}
     by_code = {e.employee_code.lower(): e for e in employees if e.employee_code}
     by_key: dict[str, list[Employee]] = defaultdict(list)
-    by_phone: dict[str, list[Employee]] = defaultdict(list)
+    by_phone: dict[str, Employee] = {}      # unique in the database, so one owner each (active or inactive)
+    by_hash: dict[str, Employee] = {}       # blind index of the full ID, also unique
     for e in employees:
         by_key[e.name_key].append(e)
         if e.phone:
-            by_phone[e.phone].append(e)
+            by_phone[e.phone] = e
+        if e.id_number_hash:
+            by_hash[e.id_number_hash] = e
 
     planned: list[PlannedRow] = []
     keys: dict[int, str] = {}
@@ -96,11 +99,36 @@ def plan_import(db: Session, rows: list[ParsedRow]) -> list[PlannedRow]:
             others = [r for r in target_rows[p.employee_id] if r != n]
             p.errors.append(f"Row {_rows(others)} would update the same employee as this row.")
 
-    # 3. Work out the changes and the warnings for rows that are still fine.
-    in_file_phone: dict[str, list[int]] = defaultdict(list)
+    # 2b. Phone numbers and ID numbers must be unique: inside the file, and against employees who are already saved.
+    #     (A row that updates the SAME person who owns the number is fine. A different owner is an error.)
+    phone_rows: dict[str, list[int]] = defaultdict(list)
+    hash_rows: dict[str, list[int]] = defaultdict(list)
     for p in planned:
-        if not p.errors and p.row.phone:
-            in_file_phone[p.row.phone].append(p.row.row_number)
+        if not p.errors:
+            if p.row.phone:
+                phone_rows[p.row.phone].append(p.row.row_number)
+            if p.row.id_hash:
+                hash_rows[p.row.id_hash].append(p.row.row_number)
+    for p in planned:
+        if p.errors:
+            continue
+        n = p.row.row_number
+        if p.row.phone:
+            others = [r for r in phone_rows[p.row.phone] if r != n]
+            if others:
+                p.errors.append(f"Phone: the same phone number is also on row {_rows(others)} of this file. Each number can belong to one employee.")
+            owner = by_phone.get(p.row.phone)
+            if owner and owner.id != p.employee_id:
+                p.errors.append("Phone: " + clash_message("phone number", owner))
+        if p.row.id_hash:
+            others = [r for r in hash_rows[p.row.id_hash] if r != n]
+            if others:
+                p.errors.append(f"ID: the same ID number is also on row {_rows(others)} of this file. Each ID number can belong to one employee.")
+            owner = by_hash.get(p.row.id_hash)
+            if owner and owner.id != p.employee_id:
+                p.errors.append("ID: " + clash_message("ID number", owner))
+
+    # 3. Work out the changes and the warnings for rows that are still fine.
 
     for p in planned:
         if p.errors:
@@ -149,13 +177,6 @@ def plan_import(db: Session, rows: list[ParsedRow]) -> list[PlannedRow]:
             p.warnings.append("No phone number: this employee cannot receive payslips until one is added.")
         if not final_id:
             p.warnings.append("No ID number: this employee's payslip cannot be password-protected until it is added.")
-        if row.phone:
-            others = [r for r in in_file_phone[row.phone] if r != row.row_number]
-            if others:
-                p.warnings.append(f"Same phone number as row {_rows(others)} in this file.")
-            clash = [e for e in by_phone.get(row.phone, []) if e.id != p.employee_id]
-            if clash:
-                p.warnings.append(f"Same phone number as existing employee {clash[0].full_name}.")
     return planned
 
 
@@ -189,7 +210,7 @@ def apply_import(db: Session, planned: list[PlannedRow]) -> dict[str, int]:
         if p.action == NEW:
             employee = Employee(active=True)
             apply_values(employee, p.row.first_name, p.row.surname, p.row.phone, p.row.id_type, p.row.id_last4,
-                         p.row.employee_code, id_number_encrypted=p.row.id_encrypted)
+                         p.row.employee_code, id_number_encrypted=p.row.id_encrypted, id_number_hash=p.row.id_hash)
             db.add(employee)
         elif p.action == UPDATE:
             employee = db.get(Employee, p.employee_id)
@@ -203,5 +224,6 @@ def apply_import(db: Session, planned: list[PlannedRow]) -> dict[str, int]:
                 p.row.id_last4 or employee.id_last4,
                 employee.employee_code,
                 id_number_encrypted=p.row.id_encrypted or employee.id_number_encrypted,
+                id_number_hash=p.row.id_hash if p.row.id_encrypted else employee.id_number_hash,
             )
     return summarize(planned)

@@ -113,16 +113,17 @@ def make_employee(db, first, surname, phone=None, id_last4=None, code=None, acti
     """id_number (a FULL number) gives the employee an encrypted full ID; id_type and id_last4 are derived from it."""
     from app.models import Employee
     from app.services.employees import apply_values
-    from app.services.id_crypto import encrypt_id
+    from app.services.id_crypto import encrypt_id, id_blind_index
     from app.services.ids import parse_id
 
-    encrypted = None
+    encrypted = id_hash = None
     if id_number:
         parsed = parse_id(id_number, id_type or "omang")
         id_type, id_last4, encrypted = parsed.id_type, parsed.last4, encrypt_id(parsed.number)
+        id_hash = id_blind_index(parsed.number)
     e = Employee(active=active)
     apply_values(e, first, surname, phone, (id_type or "omang") if id_last4 else None, id_last4, code,
-                 id_number_encrypted=encrypted)
+                 id_number_encrypted=encrypted, id_number_hash=id_hash)
     db.add(e)
     db.commit()
     return e

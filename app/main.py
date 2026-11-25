@@ -12,7 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import get_settings
 from app.database import SessionLocal
 from app.logging_setup import configure_logging
-from app.routers import account, audit_page, auth, batches, employees, health, pages, sending, system_page, users, webhook
+from app.routers import account, audit_page, auth, batches, employees, health, pages, sending, session, system_page, users, webhook
 from app.security.auth import LoginRequired, PasswordChangeRequired
 from app.security.csrf import verify_csrf
 from app.security.headers import security_headers
@@ -104,6 +104,7 @@ def create_app(settings=None) -> FastAPI:
     app.include_router(sending.router)    # protected
     app.include_router(users.router)      # admin only
     app.include_router(account.router)    # any signed-in user: own password and logins
+    app.include_router(session.router)    # any signed-in user: the inactivity warning's status / keep-alive
     app.include_router(audit_page.router) # admin only
     app.include_router(system_page.router)  # admin only
     app.include_router(webhook.router)    # public on purpose: Meta cannot log in; it is signature-checked instead

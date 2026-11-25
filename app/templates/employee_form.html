@@ -93,6 +93,13 @@
       Type the full number. It is stored encrypted, and you can show it again here or in the employee list (every time is recorded).
       Its last 4 characters (letters in capitals, for example AB12) become the password that opens this person's payslip PDF.
     </p>
+    <p class="hint">Each ID number and each phone number can belong to only one employee (active or inactive).</p>
+    {% if employee and employee.id_last4 %}
+    <div class="field">
+      <label class="choice-line"><input type="checkbox" name="remove_id" value="1"> Remove the saved ID number</label>
+      <p class="hint">Use this to free the number, for example when this record was added twice. The payslip for this person cannot be sent until a new ID is saved.</p>
+    </div>
+    {% endif %}
 
     <div class="field">
       <label for="employee_code">Employee code <span class="optional">(optional)</span></label>

@@ -16,6 +16,8 @@ Run from the project root in PowerShell. Use `python -m ...`, never the bare `.e
 - Install pinned deps: `.\dev.ps1 install`; security audit: `.\dev.ps1 audit`; production readiness (FAILs on APP_ENV on a dev PC, expected): `.\dev.ps1 check`
 - Migrations: `python -m alembic revision --autogenerate -m "msg"` then `python -m alembic upgrade head` (tests use SQLite `create_all`,
   so a model change without a migration does NOT fail them)
+- Upgrading a DB that already has employees (unique ID/phone, two migrations): `python -m alembic upgrade head` (the second one refuses with a
+  plain message until the data is ready) -> `python -m app.scripts.backfill_id_hash` (hashes + lists duplicates) -> fix them -> `upgrade head` again.
 - No linter/formatter is configured.
 
 ## Architecture in one paragraph
@@ -209,7 +211,7 @@ transport while `PYTEST_CURRENT_TEST` is set).
   WhatsApp); **111** = HTTP 429 every time (backoff, then `failed` 130429); **222** = timeout (`uncertain`); others =
   sent, then delivered, then read after random delays (0.5-1.5 s, 1-3 s, 2-5 s) through the webhook's status path. A MOCK
   banner shows on every page (`live_whatsapp_mode()` template global); the send confirmation shows a big MOCK/LIVE banner.
-- **Pages** (login + CSRF): `/batches/{id}/send` (confirmation: counts, MOCK/LIVE banner, allowlist warning, type the pay month),
+- **Pages** (login + CSRF): `/batches/{id}/send` (confirmation: counts, MOCK/LIVE banner, allowlist warning, a PREVIEW of what each employee gets (`sending.message_preview`: sample name "Thabo Molefe", pay month, file name, password rule; template wording from `WHATSAPP_TEMPLATE_PREVIEW_TEXT`, escaped; never a real employee), type the pay month),
   POST `.../send`, `.../stop`, `.../resume`, `.../retry-failed`, `.../payslips/{id}/retry`, `.../retry-uncertain`
   (checkboxes via the `form=` attribute + `understood`), GET `.../status.json` (poll: counts + per-row status/label/detail;
   NO names, phones or IDs), GET `.../report.csv` (employee name, masked phone, status, UTC times, error code + explanation;
@@ -424,14 +426,30 @@ files in `deploy/`. NONE of the `deploy/` files has run on a real Ubuntu server 
 - Pages (all behind `require_login`): `/employees` (search name/phone/code incl. accent-insensitive, number-like
   queries such as "71 234 567" match as one phone; filter active/inactive/all; 25 per page), `/employees/new`,
   `/employees/{id}/edit`, POST `.../deactivate` and `.../activate`. NO hard delete exists (a test enforces it).
-  Add/edit warns (not blocks) on duplicate phone or duplicate normalised name; "Save anyway" works through a hidden `ack` fingerprint of the exact warnings shown.
+  Add/edit BLOCKS a phone or ID number that belongs to another employee (error names the owner, never a value); a duplicate normalised NAME
+  only warns; "Save anyway" works through a hidden `ack` fingerprint of the exact warnings shown. Edit also has "Remove the saved ID number"
+  (`remove_id`) to free an ID.
+- **Unique ID and phone (task 11).** `employees.phone` and `employees.id_number_hash` have UNIQUE indexes (`uq_employees_phone`,
+  `uq_employees_id_number_hash`, declared in the model `__table_args__`), across ALL employees, active or not (a deactivated employee keeps their
+  number until edited; owner's decision). NULLs may repeat. `id_number_hash` = `id_crypto.id_blind_index(number)` = HMAC-SHA256 of the NORMALISED
+  number (`normalise_id`: upper-case, no spaces/dashes, NO id_type, so Omang "123456789" and passport "123456789" collide) keyed by
+  HKDF(newest ID_ENCRYPTION_KEY, info `id-blind-index`): no extra secret. **Rotating the key changes every hash**: `reencrypt_ids` re-hashes in
+  the same pass (`IdCipher.blind_index`). The hash is as private as the ciphertext: never shown, logged, exported (tests check). Three layers:
+  `employees.validate_form` (`phone_owner` / `id_owner` / `clash_message`), `import_planner` (in-file duplicates are errors on EVERY involved row;
+  a row whose phone/ID belongs to a DIFFERENT existing employee is an error; the same person re-imported is fine; `ParsedRow.id_hash` is
+  `repr=False`), and the database (`IntegrityError` on commit is caught in `_save_form` and `import_confirm`: rollback, re-validate so the message
+  names whoever won the race). `apply_values` now needs BOTH `id_number_encrypted` and `id_number_hash` keyword args (no defaults): to KEEP the stored ID
+  pass both from the employee. Legacy rows keep a NULL hash until `python -m app.scripts.backfill_id_hash` (decrypts in memory, prints names and
+  employee ids only, exit 1 while duplicates/unreadable IDs remain). Migrations: `a8d4e2b61c90` adds the column + NON-unique indexes (cannot fail);
+  `b9e5f3c72da1` drops them and creates the UNIQUE ones but raises `CommandError` (changes nothing) while any stored ID lacks its hash or any phone/hash
+  is duplicated. `alembic/env.py` uses `transaction_per_migration=True` so step 1 stays recorded when step 2 refuses. Tests: `tests/test_unique_ids_phones.py`.
 - Normalisers (pure, tested): `app/services/names.py` (name_key = sorted set of words: no accents, lowercase,
   apostrophes dropped, split on non-letters; REUSE for payslip filename matching), `phones.py`, `ids.py`
   (`parse_id(number, type)` -> `IdResult(id_type, number, last4, warnings, error)`). The plain number exists only in
   memory (inside `parse_id`, then encrypted at once by the callers) and is never put in errors, warnings, logs, session or
   preview; `ParsedRow.id_encrypted` is `repr=False` so it cannot leak through logging. Invariant: `id_last4` ==
-  last 4 of the stored full number. `apply_values(..., *, id_number_encrypted)` has no default on purpose: to KEEP the
-  stored full ID pass `employee.id_number_encrypted`. Spaces and dashes are ignored; unknown id_type is an error; blank id_type is guessed with a warning.
+  last 4 of the stored full number. `apply_values(..., *, id_number_encrypted, id_number_hash)` has no defaults on purpose: to KEEP the
+  stored full ID pass `employee.id_number_encrypted` and `employee.id_number_hash`. Spaces and dashes are ignored; unknown id_type is an error; blank id_type is guessed with a warning.
 - Phone rules: strip spaces - ( ) . ; `00` -> `+`; 8 digits or 267+8 digits => Botswana. Botswana national part must
   be 8 digits (error otherwise); not starting with 7 => accepted with a "not a mobile" warning. Other countries need
   `+` and 8-15 digits, first digit not 0. Blank phone/ID is allowed (warned) and never erases saved values.
@@ -455,7 +473,14 @@ files in `deploy/`. NONE of the `deploy/` files has run on a real Ubuntu server 
   **employee_edit_opened** (every time an edit form is opened, because it can put the stored last-4 on the page; entity id
   only, no details) and employees_import_confirmed (counts only), **ids_revealed** (ONE row per reveal request: user_id,
   details `username 'x', employees=N`, entity id only for the single-employee reveal from the edit page; never any ID
-  value; no row when nothing was revealed) and id_keys_rotated (counts only).
+  value; no row when nothing was revealed) and id_keys_rotated (counts only), **employees_exported** (`rows=N`), **id_hashes_backfilled**
+  (counts), and one `employee_deactivated` row per person in a bulk deactivate (`details=bulk`).
+- **Employee list tools (task 11).** URL param `show` (omang|passport|no_id|no_phone|dup_name; `employees.FILTERS`, one source for the "Show" chips and
+  the dashboard links) is part of `_clean_list_params` (7-tuple) and of the reveal form. Columns: ID type TAG, "Last payslip" (`last_payslips`: newest
+  payslip with status != pending: pay month + status only). Bulk: editors get a checkbox per ACTIVE row (`form="bulk-form"`), `POST /employees/bulk-deactivate`
+  (`employees.edit`, max 200, keeps list params, redirects back). `GET /employees/export.csv` (`employees.view`; the CURRENT list, all pages): First
+  name, Surname, Phone, Status ONLY, formula-guarded, no-store, audited; it must never gain an ID/ID type/last-4 column (tests scan for the secrets).
+  `test_the_reveal_route_is_the_only_one_that_can_return_full_ids` lists the allowed file endpoints: update it deliberately if you add one.
 - ID display: list columns "ID type", "ID number" and "Password (last 4)". "ID number" shows 9 dots (`id_mask`, same for
   everyone) in a `data-id-slot="<employee id>"` span; people with only a last 4 saved show `••••1234` + "full ID not
   imported yet" (no slot). The last-4 password column sits in `data-secret` attributes, shown as •••• until **Show IDs**.
@@ -489,7 +514,7 @@ files in `deploy/`. NONE of the `deploy/` files has run on a real Ubuntu server 
   `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) }` = dark (the two dark blocks MUST be identical; a test checks it,
   checks WCAG AA 4.5:1 for every text/background pair in both themes and 3:1 for the focus ring, and that no colour is hard-coded outside the
   variable blocks except the flag-stripe white). `static/theme.js` is loaded in `<head>` WITHOUT defer so the saved choice (localStorage
-  `payslip-theme`, try/catch) applies before the first paint; the toggle button (`data-theme-toggle`, `aria-pressed`) is in the top bar. The
+  `payslip-theme`, try/catch) applies before the first paint; the toggle button (`data-theme-toggle`, `aria-pressed`) is the "Dark theme" switch at the bottom of the sidebar (and a small button on the login card). The
   top bar also holds breadcrumbs (`{% from "_crumbs.html" import crumbs %}` + `{% block breadcrumbs %}` in each deep page) and the ALWAYS-visible
   MOCK/LIVE pill (`live_whatsapp_mode()` template global; do not name a context variable `whatsapp_mode`/`role_label`/`can`: it shadows the
   global). Flash messages are TOASTS: same `.flash` markup in a fixed `.toasts` live region after `</main>`; app.js removes success/info after
@@ -502,10 +527,19 @@ files in `deploy/`. NONE of the `deploy/` files has run on a real Ubuntu server 
   when `data-active` flips to finished. Scrollable tables are `role="region" tabindex="0" aria-label` (a test checks every template) and keep
   their first column sticky below 900 px. `prefers-reduced-motion` switches animations off. No inline script/style/handler and no external
   resource anywhere (a test scans every template and the stylesheet).
-- Layout: `templates/base.html` = left sidebar (Dashboard, Employees, Batches; Users, Audit log, System status for admins only; the
-  user's name + role link to My account, and a log-out button), a top bar (breadcrumbs, MOCK/LIVE pill, theme toggle) and a page header block (`heading`, `lede`, `actions`; child templates also
-  set `{% block nav_key %}` to highlight the nav item). On phones the sidebar becomes a top bar. `login.html` and
-  `error.html` replace the whole page block.
+- Layout (task 11): `templates/base.html` = left sidebar (`#sidebar`: logo + collapse button; GET search form to `/employees?q=..&status=all`, `/` focuses it
+  (or the page's `[data-page-search]`); nav pills with `nav-label` + `nav-tip` tooltip spans; Users/Audit log/System status under an "Admin" heading for
+  admins only; at the bottom the theme SWITCH (`data-theme-toggle`, same attributes theme.js and the tests expect), name + role link to My account, log out),
+  a top bar (hamburger on small screens, breadcrumbs, MOCK/LIVE pill) and a page header block (`heading`, `lede`, `actions`; `{% block nav_key %}` highlights the
+  nav item). `static/sidebar.js` (loaded in `<head>` WITHOUT defer, ASCII, no network): `html[data-sidebar=collapsed|expanded]` remembered in
+  localStorage `payslip-sidebar`; collapsed = icons only (words stay in the DOM visually hidden, CSS tooltips on hover/focus; wide screens only); under
+  900 px with scripts the sidebar is an off-canvas drawer (`html[data-drawer=open]`, `inert` on `.content`, focus trap, Esc, backdrop, focus returns to
+  the menu button); WITHOUT scripts (`html:not(.js)`) it stays a plain block above the page. Keep `needs-js` specificity rules in mind (`.js .needs-js.menu-btn`).
+  `login.html` and `error.html` replace the whole page block (so they have no sidebar, dialogs or session.js).
+- **Login page**: glass card (`.glass-card`, backdrop blur + `@supports` fallback) over 4 CSS radial-gradient blobs (`.login-blob`, drift only under
+  `prefers-reduced-motion: no-preference`), white circular badge with an inline SVG, pill inputs, show/hide password (`data-toggle-password`, in app.js),
+  no remember-me, `<details class="forgot">` note. Colours are variables (`--glass-bg`, `--blob-*`, ...) in all THREE theme blocks; tests composite the glass colour
+  over every blob and require 4.5:1 for text. Lockout (HTTP 429) renders `login-alert-lock`; the generic messages are unchanged.
 - Design language: sky blue / black / white (the stripe mark in the logo and on the login screen), system font stack
   only, sentence-case labels, status badges are always a word plus dot/icon. ALL colours/radii/shadows are CSS
   variables in `:root` of `app/static/style.css`, so a dark theme only needs a second set of values.
@@ -514,7 +548,14 @@ files in `deploy/`. NONE of the `deploy/` files has run on a real Ubuntu server 
   Template helpers in `app/templating.py`: `icon(name)`, `badge(kind, label)`, `avatar(first, surname, id)`,
   `csrf_input(request)`, `get_flashes(request)`. Add new icons to the sprite; a test checks every used icon exists.
 - app.js (progressive enhancement; its ONE network request is the Show IDs reveal POST): Show/Hide IDs, dismissible flashes, row menus
-  (`<details class="menu">`), auto-submit for `data-autosubmit` selects, double-submit guard for `form[data-once]`.
+  (`<details class="menu">`), auto-submit for `data-autosubmit` selects, double-submit guard for `form[data-once]`, the ONE `<dialog id="confirm-dialog">`
+  (`role=alertdialog`; the app never uses `confirm()/alert()/prompt()`: a test scans all JS and templates), employee-list bulk selection (`data-select-*`,
+  `data-bulk-button` rewrites its own confirm title with the count), show/hide password.
+- **Inactivity warning** (`static/session.js`, loaded only on logged-in pages, own `fetch`es: `GET /session/status` and `POST /session/keepalive` with
+  `X-CSRF-Token`, `redirect: "manual"`; a test pins that these are its only URLs). `routers/session.py` (permission `account.self`; both paths are in
+  `PENDING_ALLOWED_PATHS`). `sessions.NO_TOUCH_PATHS = {"/session/status"}`: asking does NOT refresh `LAST_SEEN`, otherwise the warning would keep the
+  session alive; `sessions.seconds_left` = min(idle left, absolute left). At 60 s left the script opens `#idle-dialog` (Stay signed in / Esc = keep-alive,
+  Log out now, countdown, then `/login`); it re-asks the server first (other tabs and background polling extend the session).
 - Employee list URL params: `q`, `status` (active|inactive|all), `sort` (name|status), `dir` (asc|desc), `per_page`
   (10|25|50|100), `page`; defaults are omitted from generated links. Chips show counts for the current search.
 - Flash messages: `app/flash.py` (keep them free of personal data; they live in the cookie). Tables stay semantic
@@ -527,7 +568,7 @@ files in `deploy/`. NONE of the `deploy/` files has run on a real Ubuntu server 
 app/            main.py (create_app) config.py (settings) database.py templating.py
   security/     passwords, sessions, csrf, auth (require_login), headers
   server.py     production entry point (python -m app.server)    single_instance.py  one-process lock    logging_setup.py
-  scripts/      CLI: production_check (server readiness), create_admin, reset_admin_password, generate_secret, generate_encryption_key, reencrypt_ids,
+  scripts/      CLI: production_check (server readiness), create_admin, reset_admin_password, generate_secret, generate_encryption_key, reencrypt_ids, backfill_id_hash,
                 purge_old_batches, make_test_payslips (fake PDFs), fake_webhook (signed fake status events),
                 check_live_config (read-only live preflight)
   static/       public, self-hosted: style.css, app.js, icons.svg (never payslip files)
@@ -554,7 +595,7 @@ private_storage/  uploaded/encrypted PDFs (git-ignored)
   `Base.metadata.create_all` (SQLite), so a model change that lacks a migration will NOT fail the normal tests.
 - CLI scripts (run from the project root with the venv active): `python -m app.scripts.create_admin`,
   `reset_admin_password`, `generate_secret` (writes `SESSION_SECRET` into `.env`), `generate_encryption_key` (writes
-  `ID_ENCRYPTION_KEY`, `--rotate` for rotation), `reencrypt_ids`, `make_sample_import` (fake import files).
+  `ID_ENCRYPTION_KEY`, `--rotate` for rotation), `reencrypt_ids` (also re-hashes), `backfill_id_hash`, `make_sample_import` (fake import files).
 - No linter/formatter is configured (no ruff/black/pyproject); match the surrounding style.
 - Add any new setting to BOTH `app/config.py` and `.env.example`.
 
@@ -580,5 +621,10 @@ private_storage/  uploaded/encrypted PDFs (git-ignored)
   (`app.server` + instance lock), safe start-up recovery + in-app housekeeping, structured redacted logging, `SENT_RETENTION_DAYS` + daily purge
   timer, `production_check`, `deploy/` (systemd, Caddyfile, setup/update/backup/restore scripts), pinned dependencies + pip-audit + `dev.ps1`,
   DEPLOY.md. The deploy files have never run on a real server.
+- DONE (task 11): unique ID + phone (blind index, form/import/DB, two migrations, `backfill_id_hash`), glass login page, new sidebar layout (collapsible,
+  drawer, `/` search, theme switch), send-screen message preview (`WHATSAPP_TEMPLATE_PREVIEW_TEXT`, preview only, never sent), dashboard "Needs attention"
+  card + admin banners (`dashboard.admin_alerts`: token rejected = latest `send_token_error` audit with no payslip `sent_at` after it, 30 days; webhook silent =
+  live mode, a live payslip `sent` for > 10 min and no signed webhook since it was sent), employee list tools (see above), inactivity warning, in-page modals.
+  Tests: `tests/test_unique_ids_phones.py`, `tests/test_ui_upgrade.py`.
 - NOT YET BUILT: per-IP rate limit on the webhook, a real live send
   (never exercised against Meta: do the going-live checklist first).

@@ -69,7 +69,7 @@ def test_row_menu_has_edit_and_a_protected_deactivate_form(logged_in, db):
     e = make_employee(db, "Thabo", "Molefe")
     html = logged_in.get("/employees").text
     assert f'href="/employees/{e.id}/edit"' in html
-    assert f'action="/employees/{e.id}/deactivate"' in html and html.count('name="csrf_token"') == 3   # logout + reveal form + this row
+    assert f'action="/employees/{e.id}/deactivate"' in html and html.count('name="csrf_token"') == 5   # logout + the idle dialog's logout + reveal form + bulk form + this row
 
 
 # ---- list: search, filters, sort, paging -----------------------------------------------------------------------
@@ -238,11 +238,11 @@ def test_duplicate_code_is_an_error(logged_in, db):
     assert r.status_code == 422 and "already used by Other Person" in r.text
 
 
-def test_duplicate_name_and_phone_warn_then_save_anyway(logged_in, db):
+def test_duplicate_name_warns_then_save_anyway(logged_in, db):
     make_employee(db, "Thabo", "Molefe", "+26771234567")
-    fields = dict(first_name="MOLEFE", surname="thabo", phone="71234567")
+    fields = dict(first_name="MOLEFE", surname="thabo", phone="71234568")   # a phone number can no longer be shared
     r = form_post(logged_in, "/employees/new", **fields)
-    assert r.status_code == 200 and "Another employee has the same name" in r.text and "already used by Thabo Molefe" in r.text
+    assert r.status_code == 200 and "Another employee has the same name" in r.text
     assert "Save anyway" in r.text and db.query(Employee).count() == 1
     ack = re.search(r'name="ack" value="([^"]+)"', r.text).group(1)
     assert form_post(logged_in, "/employees/new", ack=ack, **fields).status_code == 303 and db.query(Employee).count() == 2

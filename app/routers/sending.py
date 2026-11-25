@@ -3,6 +3,7 @@
 Login + CSRF on everything (router dependency + the app-wide CSRF check). Flash messages and audit entries hold counts only.
 """
 import logging
+import re
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -19,6 +20,7 @@ from app.routers.batches import get_session_factory
 from app.security.auth import require_login
 from app.security.permissions import require
 from app.services import audit, sender, send_view
+from app.services.whatsapp import payslip_filename
 from app.templating import templates
 
 router = APIRouter(prefix="/batches", dependencies=[Depends(require_login)])
@@ -42,6 +44,27 @@ def _back(batch_id: int) -> RedirectResponse:
     return RedirectResponse(f"/batches/{batch_id}", status_code=303)
 
 
+SAMPLE_NAME = "Thabo Molefe"      # a made-up person: the preview never shows a real employee
+
+
+def message_preview(batch: Batch, settings) -> dict:
+    """Exactly what an employee will get, with a SAMPLE name. Template mode: the wording from WHATSAPP_TEMPLATE_PREVIEW_TEXT
+    (WhatsApp sends the approved template itself, so that text must match it). Document mode: the caption is the pay month."""
+    parts = []
+    if settings.whatsapp_send_kind == "template":
+        for piece in re.split(r"(\{\{\s*[12]\s*\}\})", settings.whatsapp_template_preview_text):
+            if re.fullmatch(r"\{\{\s*1\s*\}\}", piece):
+                parts.append(("var", SAMPLE_NAME))
+            elif re.fullmatch(r"\{\{\s*2\s*\}\}", piece):
+                parts.append(("var", batch.pay_month_label))
+            elif piece:
+                parts.append(("text", piece))
+    else:
+        parts.append(("var", batch.pay_month_label))
+    return {"parts": parts, "filename": payslip_filename(batch.pay_month_label), "kind": settings.whatsapp_send_kind,
+            "sample_name": SAMPLE_NAME}
+
+
 @router.get("/{batch_id:int}/send", response_class=HTMLResponse, dependencies=[Depends(require("batches.send"))])
 def send_confirmation(request: Request, batch_id: int, db: Session = Depends(get_db), user: User = Depends(require_login)):
     batch = _batch(db, batch_id)
@@ -58,6 +81,7 @@ def send_confirmation(request: Request, batch_id: int, db: Session = Depends(get
         "current_user": user, "batch": batch, "files": len(rows), "without_count": max(0, active - len({p.employee_id for p in rows})),
         "mode": settings.whatsapp_mode, "allowed_count": len(allowed), "blocked_count": blocked,
         "send_kind": settings.whatsapp_send_kind, "template_name": settings.whatsapp_template_name,
+        "preview": message_preview(batch, settings), "language": settings.whatsapp_template_language,
     })
 
 

@@ -191,6 +191,54 @@
     items[next].focus();
   });
 
+  /* ---- employee list: tick rows, "select all on this page", and the "Deactivate selected" bar ---- */
+  var bulkForm = document.querySelector("[data-bulk-form]");
+  if (bulkForm) {
+    var rows = function () { return [].slice.call(document.querySelectorAll("[data-select-row]")); };
+    var refreshBulk = function () {
+      var ticked = rows().filter(function (box) { return box.checked; }).length;
+      var all = document.querySelector("[data-select-all]");
+      var count = bulkForm.querySelector("[data-select-count]");
+      var button = bulkForm.querySelector("[data-bulk-button]");
+      if (count) { count.textContent = String(ticked); }
+      bulkForm.classList.toggle("is-active", ticked > 0);
+      if (all) {
+        all.checked = ticked > 0 && ticked === rows().length;
+        all.indeterminate = ticked > 0 && ticked < rows().length;
+      }
+      if (button) {
+        button.setAttribute("data-confirm-title", "Deactivate " + ticked + " employee" + (ticked === 1 ? "" : "s") + "?");
+        button.disabled = ticked === 0;
+      }
+    };
+    document.addEventListener("change", function (event) {
+      if (event.target.matches("[data-select-all]")) {
+        rows().forEach(function (box) { box.checked = event.target.checked; });
+        refreshBulk();
+      } else if (event.target.matches("[data-select-row]")) {
+        refreshBulk();
+      }
+    });
+    window.addEventListener("pageshow", refreshBulk);
+    refreshBulk();
+  }
+
+  /* ---- show / hide password (login page): flips the field between password and text; nothing is stored ---- */
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-toggle-password]");
+    if (!button) { return; }
+    var field = document.querySelector(button.getAttribute("data-toggle-password"));
+    if (!field) { return; }
+    var show = field.type === "password";
+    field.type = show ? "text" : "password";
+    button.setAttribute("aria-pressed", show ? "true" : "false");
+    button.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    button.setAttribute("title", show ? "Hide password" : "Show password");
+    var use = button.querySelector("use");
+    if (use) { use.setAttribute("href", "/static/icons.svg#i-" + (show ? "eye-off" : "eye")); }
+    field.focus();
+  });
+
   /* ---- copy button (data-copy-target="#id"): copies that element's text ---- */
   document.addEventListener("click", function (event) {
     var button = event.target.closest("[data-copy-target]");

@@ -286,6 +286,16 @@ It refuses to run while a send is in progress (a restart would leave in-flight p
 database backup, gets the new code, installs the pinned packages, runs the database migrations, restarts the app and checks `/health`.
 (`--skip-backup` exists for the very first updates before backups are set up; `--force` ignores the send check: use neither casually.)
 
+**The update that makes phone and ID numbers unique** (two migrations, see the README section "Unique ID and phone numbers"): on a server that
+already has employees the second migration may stop with *"Cannot make phone and ID numbers unique yet"*. Nothing was broken or changed; the
+update stops before restarting, so the old version keeps running. Do this, then run `update.sh` again (or the commands below by hand):
+```bash
+sudo /opt/payslip-sender/deploy/app-run.sh app.scripts.backfill_id_hash     # hashes the stored IDs and lists duplicates (names and employee numbers only)
+# fix what it lists in the app (change or clear a phone; "Remove the saved ID number"), run the line above again until it says "No duplicates found"
+cd /opt/payslip-sender && sudo -u payslip -H .venv/bin/python -m alembic upgrade head      # now the unique indexes are created
+sudo systemctl restart payslip-sender
+```
+
 **Rolling back** if the update fails or the new version misbehaves (`update.sh` prints these exact commands when `/health` fails):
 1. Put the old code back. Git clone: `sudo -u payslip git -C /opt/payslip-sender checkout OLD_COMMIT` (the update printed it; or `git log --oneline`).
    Zip: `sudo tar -xzf /var/backups/payslip-sender/code-DATE.tar.gz -C /opt/payslip-sender`.

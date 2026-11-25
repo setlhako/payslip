@@ -101,13 +101,29 @@ On the Users page you can: **add a user** (username, full name, role), **edit** 
 
 ## Look and feel
 
-- **Dark theme:** click the moon/sun button at the top right. The app remembers your choice in this browser; before you choose it follows your
+- **Login page:** a frosted-glass card on a soft blurred background (all drawn with CSS: no pictures, nothing loaded from the internet). There is
+  no "Remember me": sessions are always time-limited. **Forgot password?** opens a note: passwords are reset by an administrator.
+  The eye button shows or hides what you type in the password box.
+- **Sidebar (left):** logo, **Search employees...** (press **/** anywhere to jump to it; on the Employees page it jumps to that page's own search
+  box), the menu with a rounded highlight on the current page (Users, Audit log and System status only appear for admins; the server still
+  enforces who may do what), then at the bottom the **Dark theme** switch, your name and role (click for My account) and **Log out**.
+  - **Collapse:** the panel button at the top of the sidebar shrinks it to icons only (hover or Tab to an icon to see its name). The app
+    remembers your choice in this browser.
+  - **Phones and small windows:** the sidebar becomes a drawer opened by the menu button (top left). It traps the keyboard focus while open, **Esc**
+    or a tap outside closes it.
+- **Dark theme:** the switch at the bottom of the sidebar. The app remembers your choice in this browser; before you choose it follows your
   computer's light/dark setting.
 - A **MOCK** or **LIVE** badge is always visible at the top right of every page.
 - Messages appear as small notices at the bottom right and fade away (errors stay until you close them). Risky buttons (delete, disable, stop
-  sending, reset password) ask "Are you sure?" first.
+  sending, reset password, deactivate selected) ask "Are you sure?" in an in-page dialog first (the app never uses the browser's own pop-ups).
+- **Inactivity warning:** the session ends after 30 minutes without activity. One minute before that, a dialog asks "Still there?": **Stay signed
+  in** (or Esc) keeps you in, **Log out now** ends the session, and doing nothing signs you out. The 8-hour limit still applies.
 - Everything works with the keyboard (Tab, Enter, Esc, arrow keys in menus), respects "reduce motion", and wide tables scroll sideways on a phone
   while keeping the first column visible.
+
+- **Dashboard "Needs attention":** active employees without a phone number or ID, and names shared by several active employees, each with a
+  link that filters the Employees list. **Admins** also get a red banner when WhatsApp rejected the access token (and nothing has been sent
+  successfully since), and an amber one when messages were sent more than 10 minutes ago but no delivery report has reached the webhook (live mode only).
 
 ## Run the tests
 
@@ -133,6 +149,14 @@ Log in, then click **Employees**.
   10 times a minute. Opening someone's edit page is recorded too.
 - People saved before this feature show only `••••` and their last 4 with the note "full ID not imported yet". Import your file again
   (same file is fine) and their full IDs are filled in.
+- **ID type** shows as a coloured tag (Omang / Passport). The **Last payslip** column shows the pay month and delivery status of the
+  person's most recent payslip that was sent (or tried): "None yet" if nothing was sent.
+- **Show** chips (Everyone, Omang, Passport, No ID, No phone, Same name) narrow the list. The dashboard's "Needs attention" card links to them.
+- **Bulk deactivate:** tick people (the box in the header ticks the whole page; inactive people have no box), then **Deactivate selected**
+  and confirm. Up to 200 at a time. Each person gets their own audit entry; nothing is deleted.
+- **Export list (no ID numbers)** downloads `employees.csv` with first name, surname, phone and status for everyone on the current list (your
+  search, status and Show filter apply, all pages). It never contains an ID number, ID type or last 4. Each export is recorded in the audit log.
+- **A phone number and an ID number can belong to one employee only** (see "Unique ID and phone numbers" below).
 
 ### Import from Excel or CSV
 1. Employees > **Import from Excel / CSV** > **Download import template**. Delete the example row and fill in your people.
@@ -197,6 +221,10 @@ in memory only, then "sent" and tracked.
 
 1. Open a batch that is **Ready to send** and press **Send payslips**. The next page shows the counts and a very visible
    **MOCK** or **LIVE** banner. Type the pay month (for example `November 2026`) to confirm, then press **Send**.
+   The same page first shows **what each employee will receive**: a preview of the message with a made-up sample name and the pay month, the PDF
+   file name (`Payslip - November 2026.pdf`) and a reminder of the password rule (last 4 characters of the Omang or passport, in capitals).
+   WhatsApp always sends the text of your approved template, so put that wording in `WHATSAPP_TEMPLATE_PREVIEW_TEXT` in `.env` (`{{1}}` = name,
+   `{{2}}` = pay month) to make the preview match. It is only a preview: that setting is never sent.
 2. The batch page becomes a live screen: counters and a status per employee (Queued, Sending, Sent, Delivered, Read, Failed,
    Uncertain) that update by themselves. Buttons: **Stop** (cancels what is still queued; **Resume sending** continues),
    **Retry failed**, a **Retry** on each failed row, and **Retry selected uncertain rows**, and **Download send report** (CSV:
@@ -278,6 +306,41 @@ alembic revision --autogenerate -m "describe the change"
 alembic upgrade head
 ```
 
+## Unique ID and phone numbers
+
+An ID number (Omang or passport) and a phone number can each belong to **one employee only**. It is enforced in three places: the add/edit
+form, the Excel/CSV import (errors in the preview), and the database itself (a UNIQUE index, so even two people saving at the same moment
+cannot both win: the second one gets a plain message and nothing is saved).
+
+- Messages name the other employee, never an ID value: *"This phone number already belongs to Thabo Molefe."*
+- **Inactive employees count.** Uniqueness covers everybody, active or not. A deactivated person keeps their number until you free it: edit them and
+  change or clear the phone, and for an ID tick **Remove the saved ID number** (use it when the same person was added twice).
+- An Omang and a passport with the same characters are the same ID. Spaces, dashes and capital letters do not matter.
+- Importing a file again is fine: a row that matches the same person may keep their own phone and ID. A row whose phone or ID belongs to a
+  **different** person, or that repeats one from another row of the same file, is an error row (it is skipped).
+- **How the ID check works.** The stored ID is encrypted differently every time, so the database cannot compare it. It also keeps a *blind
+  index*, `employees.id_number_hash`: an HMAC-SHA256 of the normalised ID (capitals, no spaces or dashes, no ID type) with a key derived from
+  `ID_ENCRYPTION_KEY` (HKDF, label `id-blind-index`). There is no extra secret to look after. The hash cannot be turned back into the number.
+  **Rotating the encryption key changes every hash**, so `python -m app.scripts.reencrypt_ids` re-hashes in the same run (step 3 below): do not
+  skip it after a rotation, or duplicate checks cannot see the old people.
+
+### Upgrading an existing database (two small migrations)
+
+Existing employees may already share a phone number, or only have the encrypted ID without its hash, so the unique rule is applied in two steps:
+
+1. `a8d4e2b61c90` only **adds** the `id_number_hash` column and ordinary (not unique) indexes. It cannot fail on existing data.
+2. `b9e5f3c72da1` turns them into **UNIQUE** indexes. It **refuses to run** (changing nothing, with a plain message) until every stored ID has its hash and
+   there are no duplicates.
+
+```powershell
+python -m alembic upgrade head                      # step 1 is applied; step 2 stops with an explanation if the data needs work
+python -m app.scripts.backfill_id_hash              # fills in the hashes; lists duplicates (names and employee numbers only, never values)
+#   fix what it lists in the app: change or clear a phone, or "Remove the saved ID number"; run the command again until it says "No duplicates found"
+python -m alembic upgrade head                      # step 2: the unique indexes
+```
+`backfill_id_hash` is safe to run any number of times. A fresh database (`alembic upgrade head` on an empty one) just works. On the server use
+`deploy/app-run.sh app.scripts.backfill_id_hash`.
+
 ## Rotating the encryption key
 
 Do this if the key may have leaked, or as a yearly routine. Stored IDs stay readable throughout. Keys are never shown on screen.
@@ -288,7 +351,7 @@ Do this if the key may have leaked, or as a yearly routine. Stored IDs stay read
    python -m app.scripts.generate_encryption_key --rotate
    ```
    (`.env` now has the new `ID_ENCRYPTION_KEY` and the old key in `ID_ENCRYPTION_KEY_PREVIOUS`.)
-3. Re-encrypt every stored ID with the new key (it prints only counts):
+3. Re-encrypt every stored ID with the new key (it prints only counts; it also re-computes the duplicate-check hashes, which depend on the key):
    ```powershell
    python -m app.scripts.reencrypt_ids
    ```

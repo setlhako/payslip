@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     whatsapp_send_kind: Literal["template", "document"] = "template"
     whatsapp_template_name: str = "payslip_"
     whatsapp_template_language: str = "en"
+    # ONLY for the preview on the send screen: the wording of your approved template, with {{1}} for the employee's name and
+    # {{2}} for the pay month. WhatsApp always sends the approved template itself; this text is never sent.
+    whatsapp_template_preview_text: str = (
+        "Hello {{1}}, your payslip for {{2}} is attached. To open it, use the last 4 characters of your Omang or passport number as the password."
+    )
     graph_api_version: str = "v23.0"
     whatsapp_phone_number_id: str = ""
     # The WhatsApp Business ACCOUNT id (not the phone number id). Sending does not need it; only the preflight command

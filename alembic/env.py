@@ -28,7 +28,10 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     engine = create_engine(_url(), poolclass=pool.NullPool)
     with engine.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        # transaction_per_migration: MySQL cannot undo table changes, so each migration is recorded as soon as it succeeds.
+        # Without it, a later migration that refuses to run (see b9e5f3c72da1) would leave an earlier one applied but unrecorded.
+        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True,
+                          transaction_per_migration=True)
         with context.begin_transaction():
             context.run_migrations()
 

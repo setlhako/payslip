@@ -29,6 +29,28 @@
 <div class="callout callout-info" role="status">{{ icon('info') }}<div class="callout-text">To try the unhappy paths in mock mode, give an employee a phone number ending in <strong>000</strong> (not on WhatsApp), <strong>111</strong> (rate limit) or <strong>222</strong> (timeout: uncertain).</div></div>
 {% endif %}
 
+<section class="message-preview" aria-labelledby="preview-title">
+  <h2 id="preview-title" class="section-title">What each employee will receive</h2>
+  <div class="preview-grid">
+    <div class="wa-chat" role="img" aria-label="Preview of the WhatsApp message with a sample name">
+      <div class="wa-bubble">
+        <div class="wa-doc">{{ icon('file') }}<div><strong>{{ preview.filename }}</strong><small>PDF, password protected</small></div></div>
+        <p class="wa-body">{% for kind, text in preview.parts %}{% if kind == 'var' %}<mark class="wa-var">{{ text }}</mark>{% else %}{{ text }}{% endif %}{% endfor %}</p>
+        <span class="wa-time" aria-hidden="true">now</span>
+      </div>
+    </div>
+    <dl class="preview-facts">
+      <dt>Sent as</dt>
+      <dd>{% if preview.kind == 'template' %}Template message <code>{{ template_name }}</code> ({{ language }}). The sample name <em>{{ preview.sample_name }}</em> stands in for each employee's real name.{% else %}A plain document with the pay month as its caption (testing mode: only works inside WhatsApp's 24-hour window).{% endif %}</dd>
+      <dt>File name</dt>
+      <dd><code>{{ preview.filename }}</code></dd>
+      <dt>PDF password</dt>
+      <dd>The <strong>last 4 characters</strong> of the employee's Omang or passport number, in capital letters, for example passport <code>AB1234567</code> opens with <code>4567</code> and <code>ab12cd34</code> with <code>CD34</code>. The employee already knows it: it is never put in the message.</dd>
+    </dl>
+  </div>
+  {% if preview.kind == 'template' %}<p class="hint">The wording above comes from <code>WHATSAPP_TEMPLATE_PREVIEW_TEXT</code>. WhatsApp always sends the text of your approved template, so make sure the two match.</p>{% endif %}
+</section>
+
 <form method="post" action="/batches/{{ batch.id }}/send" class="card narrow gap-top" data-once>
   {{ csrf_input(request) }}
   <div class="field">

@@ -375,9 +375,10 @@ def test_the_reveal_route_is_the_only_one_that_can_return_full_ids(app):
     paths = sorted(r.path for r in _api_routes(app.routes))
     assert len(paths) >= 15
     assert [p for p in paths if "reveal" in p] == ["/employees/reveal-ids"]
-    # the only file/JSON endpoints: the audit export, the batch send report and progress (none holds ID numbers: see test_sending.py, test_audit_system.py)
+    # the only file/JSON endpoints: the audit export, the employee list export (names, phones, status: see test_ui_upgrade.py), the batch
+    # send report and progress (none holds ID numbers: see test_sending.py, test_audit_system.py)
     assert [p for p in paths if re.search(r"export|download|csv|xlsx|json|api", p, re.I)] == [
-        "/audit/export.csv", "/batches/{batch_id:int}/report.csv", "/batches/{batch_id:int}/status.json"]
+        "/audit/export.csv", "/batches/{batch_id:int}/report.csv", "/batches/{batch_id:int}/status.json", "/employees/export.csv"]
     # the only file a user can download is the empty import template
     assert [p for p in paths if p.endswith("/template")] == ["/employees/import/template"]
 

@@ -12,11 +12,11 @@ TEMPLATES = sorted((ROOT / "app" / "templates").glob("*.html"))
 def test_every_page_has_the_sidebar_with_user_logout_and_coming_soon_items(logged_in):
     for path in ("/", "/employees", "/employees/new", "/employees/import", "/batches", "/batches/new"):
         html = logged_in.get(path).text
-        assert 'aria-label="Main"' in html and "</svg>Dashboard" in html and "</svg>Employees" in html
+        assert 'aria-label="Main"' in html and ">Dashboard</span>" in html and ">Employees</span>" in html
         assert "hr.admin" in html                                             # the signed-in username
         assert 'aria-label="Log out"' in html and 'action="/logout"' in html and 'name="csrf_token"' in html
         assert 'aria-disabled="true"' not in html and "Coming soon" not in html               # no placeholders are left
-        assert 'href="/batches"' in html and "</svg>Batches" in html and 'href="/audit"' in html and "</svg>Audit log" in html   # (the admin sees the audit log)
+        assert 'href="/batches"' in html and ">Batches</span>" in html and 'href="/audit"' in html and ">Audit log</span>" in html   # (the admin sees the audit log)
         assert 'class="mark"' in html and 'class="skip-link"' in html
 
 
@@ -59,9 +59,9 @@ def test_error_messages_use_role_alert(logged_in):
 
 def test_login_page_design_and_labels(client):
     html = client.get("/login").text
-    assert 'for="username"' in html and 'for="password"' in html and 'class="login-card"' in html
+    assert 'for="username"' in html and 'for="password"' in html and 'class="glass-card"' in html
     assert "login-art" not in html and "Use the HR admin account" not in html and "Payslips reach" not in html     # just the sign-in card, nothing else
-    assert "<h1>Log in</h1>" in html and 'type="password"' in html and 'autocomplete="current-password"' in html
+    assert re.search(r"<h1[^>]*>Log in</h1>", html) and 'type="password"' in html and 'autocomplete="current-password"' in html
 
 
 def test_error_page_is_helpful(logged_in):

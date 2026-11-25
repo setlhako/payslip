@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <title>{% block title %}Payslip Sender{% endblock %}</title>
   <script src="{{ static_url('theme.js') }}"></script>
+  <script src="{{ static_url('sidebar.js') }}"></script>
   <link rel="stylesheet" href="{{ static_url('style.css') }}">
   <script src="{{ static_url('app.js') }}" defer></script>
   {% block head_extra %}{% endblock %}
@@ -16,40 +17,69 @@
   {% set active_nav = self.nav_key()|trim %}
   {% set mode = live_whatsapp_mode() %}
   <div class="shell">
-    <aside class="sidebar">
-      <a class="brand" href="/" aria-label="Payslip Sender, go to the dashboard">
-        <span class="mark" aria-hidden="true"></span><span class="brand-name">Payslip Sender</span>
-      </a>
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar">
+      <div class="side-top">
+        <a class="brand" href="/" aria-label="Payslip Sender, go to the dashboard">
+          <span class="mark" aria-hidden="true"></span><span class="brand-name nav-label">Payslip Sender</span>
+        </a>
+        <button type="button" class="icon-btn side-collapse needs-js" data-sidebar-toggle aria-expanded="true" aria-controls="sidebar" aria-label="Collapse sidebar">{{ icon('panel') }}</button>
+        <button type="button" class="icon-btn side-close needs-js" data-drawer-close aria-label="Close menu">{{ icon('x') }}</button>
+      </div>
+
+      <form class="side-search" role="search" action="/employees" method="get">
+        <label class="visually-hidden" for="global-search">Search employees</label>
+        <span class="side-search-box">
+          {{ icon('search', 'lead') }}
+          <input class="side-search-input" type="search" id="global-search" name="q" maxlength="100" placeholder="Search employees..." autocomplete="off" aria-keyshortcuts="/">
+          <kbd class="kbd" aria-hidden="true">/</kbd>
+        </span>
+        <input type="hidden" name="status" value="all">
+        <button type="submit" class="side-search-btn" aria-label="Search employees (press / to focus)" data-search-open>{{ icon('search') }}<span class="nav-tip" aria-hidden="true">Search employees</span></button>
+      </form>
+
       <nav class="nav" aria-label="Main">
-        <a class="nav-link" href="/" {% if active_nav == 'dashboard' %}aria-current="page"{% endif %}>{{ icon('dashboard') }}Dashboard</a>
-        <a class="nav-link" href="/employees" {% if active_nav == 'employees' %}aria-current="page"{% endif %}>{{ icon('users') }}Employees</a>
-        <a class="nav-link" href="/batches" {% if active_nav == 'batches' %}aria-current="page"{% endif %}>{{ icon('batches') }}Batches</a>
+        <a class="nav-link" href="/" {% if active_nav == 'dashboard' %}aria-current="page"{% endif %}>{{ icon('dashboard') }}<span class="nav-label">Dashboard</span><span class="nav-tip" aria-hidden="true">Dashboard</span></a>
+        <a class="nav-link" href="/employees" {% if active_nav == 'employees' %}aria-current="page"{% endif %}>{{ icon('users') }}<span class="nav-label">Employees</span><span class="nav-tip" aria-hidden="true">Employees</span></a>
+        <a class="nav-link" href="/batches" {% if active_nav == 'batches' %}aria-current="page"{% endif %}>{{ icon('batches') }}<span class="nav-label">Batches</span><span class="nav-tip" aria-hidden="true">Batches</span></a>
+        {% if can(current_user, 'users.manage') or can(current_user, 'audit.view') or can(current_user, 'system.view') %}<div class="nav-heading" aria-hidden="true">Admin</div>{% endif %}
         {% if can(current_user, 'users.manage') %}
-        <a class="nav-link" href="/users" {% if active_nav == 'users' %}aria-current="page"{% endif %}>{{ icon('shield') }}Users</a>
+        <a class="nav-link" href="/users" {% if active_nav == 'users' %}aria-current="page"{% endif %}>{{ icon('shield') }}<span class="nav-label">Users</span><span class="nav-tip" aria-hidden="true">Users</span></a>
         {% endif %}
         {% if can(current_user, 'audit.view') %}
-        <a class="nav-link" href="/audit" {% if active_nav == 'audit' %}aria-current="page"{% endif %}>{{ icon('log') }}Audit log</a>
+        <a class="nav-link" href="/audit" {% if active_nav == 'audit' %}aria-current="page"{% endif %}>{{ icon('log') }}<span class="nav-label">Audit log</span><span class="nav-tip" aria-hidden="true">Audit log</span></a>
         {% endif %}
         {% if can(current_user, 'system.view') %}
-        <a class="nav-link" href="/system" {% if active_nav == 'system' %}aria-current="page"{% endif %}>{{ icon('activity') }}System status</a>
+        <a class="nav-link" href="/system" {% if active_nav == 'system' %}aria-current="page"{% endif %}>{{ icon('activity') }}<span class="nav-label">System status</span><span class="nav-tip" aria-hidden="true">System status</span></a>
         {% endif %}
       </nav>
-      <div class="account">
-        {{ avatar(current_user.display_name, '', current_user.id) }}
-        <div class="who"><a class="who-link" href="/account" {% if active_nav == 'account' %}aria-current="page"{% endif %}>{{ current_user.display_name }}</a><small>{{ role_label(current_user.role) }}</small></div>
-        <form method="post" action="/logout">
-          {{ csrf_input(request) }}
-          <button type="submit" class="icon-btn" aria-label="Log out" title="Log out">{{ icon('logout') }}</button>
-        </form>
+
+      <div class="side-bottom">
+        <button type="button" class="nav-link side-switch theme-toggle needs-js" data-theme-toggle aria-pressed="false" aria-label="Dark theme" title="Switch between light and dark theme">
+          {{ icon('moon', 'icon-moon') }}{{ icon('sun', 'icon-sun') }}<span class="nav-label">Dark theme</span><span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span><span class="nav-tip" aria-hidden="true">Dark theme</span>
+        </button>
+        <div class="account">
+          <a class="account-link" href="/account" aria-label="My account: {{ current_user.display_name }}, {{ role_label(current_user.role) }}" {% if active_nav == 'account' %}aria-current="page"{% endif %}>
+            {{ avatar(current_user.display_name, '', current_user.id) }}
+            <span class="who"><span class="who-name">{{ current_user.display_name }}</span><small>{{ role_label(current_user.role) }}</small></span>
+            <span class="nav-tip" aria-hidden="true">My account</span>
+          </a>
+          <form method="post" action="/logout">
+            {{ csrf_input(request) }}
+            <button type="submit" class="icon-btn logout-btn" aria-label="Log out">{{ icon('logout') }}<span class="nav-tip" aria-hidden="true">Log out</span></button>
+          </form>
+        </div>
       </div>
     </aside>
+    <div class="drawer-backdrop" data-drawer-close hidden></div>
     <div class="content">
       <div class="content-inner">
         <div class="topbar">
-          <div class="topbar-start">{% block breadcrumbs %}{% endblock %}</div>
+          <div class="topbar-start">
+            <button type="button" class="icon-btn menu-btn needs-js" data-drawer-open aria-controls="sidebar" aria-expanded="false" aria-label="Open menu">{{ icon('menu') }}</button>
+            {% block breadcrumbs %}{% endblock %}
+          </div>
           <div class="topbar-end">
             <span class="mode-pill mode-pill-{{ mode }}" role="status" aria-label="{{ 'Mock mode: nothing is really sent' if mode == 'mock' else 'Live mode: real WhatsApp messages are sent' }}">{{ 'MOCK' if mode == 'mock' else 'LIVE' }}</span>
-            <button type="button" class="icon-btn theme-toggle needs-js" data-theme-toggle aria-pressed="false" aria-label="Dark theme" title="Switch between light and dark theme">{{ icon('moon', 'icon-moon') }}{{ icon('sun', 'icon-sun') }}</button>
           </div>
         </div>
         <main id="main" tabindex="-1">
@@ -68,16 +98,28 @@
     </div>
   </div>
   <div class="toasts" role="region" aria-label="Notifications">{% include "_flash.html" %}</div>
-  <dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">
+  <dialog class="dialog" id="confirm-dialog" role="alertdialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
     <form method="dialog" class="dialog-body">
       <h2 id="confirm-title" data-confirm-title>Are you sure?</h2>
-      <p data-confirm-text></p>
+      <p id="confirm-text" data-confirm-text></p>
       <div class="dialog-actions">
         <button type="submit" class="btn btn-secondary" value="cancel">Cancel</button>
         <button type="submit" class="btn btn-danger" value="ok" data-confirm-ok>Confirm</button>
       </div>
     </form>
   </dialog>
+  <dialog class="dialog" id="idle-dialog" role="alertdialog" aria-labelledby="idle-title" aria-describedby="idle-text" data-idle-seconds="{{ session_idle_seconds() }}">
+    <div class="dialog-body">
+      <h2 id="idle-title">Still there?</h2>
+      <p id="idle-text">You will be signed out in <strong data-idle-left>1 minute</strong> because nothing has happened for a while. This keeps payslip information safe. Stay signed in?</p>
+      <p class="field-error" data-idle-error hidden>{{ icon('alert', 'sm') }}We could not reach the server. Please try again.</p>
+      <div class="dialog-actions">
+        <form method="post" action="/logout" class="inline">{{ csrf_input(request) }}<button type="submit" class="btn btn-secondary">Log out now</button></form>
+        <button type="button" class="btn btn-primary" data-idle-stay autofocus>Stay signed in</button>
+      </div>
+    </div>
+  </dialog>
+  <script src="{{ static_url('session.js') }}" defer></script>
   {% endblock %}
 </body>
 </html>

@@ -9,6 +9,13 @@
   {% if can(current_user, 'batches.manage') %}<a class="btn btn-primary" href="/batches/new">{{ icon('plus') }}New batch</a>{% endif %}
 {% endblock %}
 {% block content %}
+{% for a in alerts %}
+<div class="alert-banner alert-{{ a.kind }}" role="alert">
+  {{ icon('alert') }}
+  <div class="alert-text"><strong>{{ a.title }}</strong><p>{{ a.text }}</p></div>
+  <a class="btn btn-secondary btn-sm" href="{{ a.link }}">{{ a.link_label }}</a>
+</div>
+{% endfor %}
 {# ---- the latest batch: one ribbon that shows where the payslips are ---- #}
 {% if latest %}
 {% set b = latest.batch %}
@@ -48,6 +55,22 @@
   {% if can(current_user, 'batches.manage') %}<div class="actions"><a class="btn btn-primary" href="/batches/new">{{ icon('plus') }}New batch</a></div>{% endif %}
 </section>
 {% endif %}
+
+{% set todo = attention.no_phone + attention.no_id + attention.dup_groups %}
+<section class="panel attention" aria-labelledby="attention-title">
+  <div class="panel-section">
+    <div class="panel-head"><h2 id="attention-title">Needs attention</h2>{% if todo %}<span class="badge badge-warning">{{ icon('alert') }}{{ todo }} thing{{ '' if todo == 1 else 's' }} to look at</span>{% else %}<span class="badge badge-active"><span class="dot" aria-hidden="true"></span>All clear</span>{% endif %}</div>
+    {% if todo %}
+    <ul class="attention-list">
+      {% if attention.no_phone %}<li>{{ icon('alert') }}<span><strong>{{ attention.no_phone }}</strong> active employee{{ '' if attention.no_phone == 1 else 's' }} without a phone number. They cannot receive a payslip.</span><a href="/employees?show=no_phone">Show them</a></li>{% endif %}
+      {% if attention.no_id %}<li>{{ icon('alert') }}<span><strong>{{ attention.no_id }}</strong> active employee{{ '' if attention.no_id == 1 else 's' }} without an ID number. Their payslip cannot be password-protected.</span><a href="/employees?show=no_id">Show them</a></li>{% endif %}
+      {% if attention.dup_groups %}<li>{{ icon('alert') }}<span><strong>{{ attention.dup_people }}</strong> active employees share {{ attention.dup_groups }} name{{ '' if attention.dup_groups == 1 else 's' }}. Payslip files for these names always need a manual match.</span><a href="/employees?show=dup_name">Show them</a></li>{% endif %}
+    </ul>
+    {% else %}
+    <p class="muted">Every active employee has a phone number and an ID, and no two active employees share a name.</p>
+    {% endif %}
+  </div>
+</section>
 
 <h2 class="section-title gap-top">Employees</h2>
 <section class="ledger" aria-label="Employee overview">

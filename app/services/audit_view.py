@@ -33,6 +33,7 @@ LABELS = {
     "batch_files_purged": "Old files purged", "send_started": "Sending started", "batch_stopped": "Sending stopped", "send_resumed": "Sending resumed",
     "retry_clicked": "Retry clicked", "send_token_error": "WhatsApp token rejected", "report_downloaded": "Send report downloaded",
     "webhook_rejected": "Webhook rejected (bad signature)", "audit_exported": "Audit log exported",
+    "employees_exported": "Employee list exported", "id_hashes_backfilled": "ID duplicate-check hashes filled in",
 }
 
 

@@ -1,6 +1,8 @@
 """Re-encrypt every stored ID number with the newest key. Run: python -m app.scripts.reencrypt_ids
 
 Used after `python -m app.scripts.generate_encryption_key --rotate`. Safe to run more than once. Only counts are printed.
+It also re-computes every employee's ID blind index (`id_number_hash`), because that hash is keyed from the newest
+encryption key and so changes whenever the key is rotated. Until this has run, duplicate-ID checks cannot see old rows.
 """
 import sys
 
@@ -19,6 +21,7 @@ def reencrypt_all(db: Session, cipher: IdCipher) -> tuple[int, list[int]]:
     for employee in db.scalars(select(Employee).where(Employee.id_number_encrypted.is_not(None))):
         try:
             employee.id_number_encrypted = cipher.rotate(employee.id_number_encrypted)
+            employee.id_number_hash = cipher.blind_index(cipher.decrypt(employee.id_number_encrypted))   # in memory only
             done += 1
         except IdCryptoError:
             failed.append(employee.id)

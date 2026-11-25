@@ -26,6 +26,8 @@ ROWS = [
     ["Jo", "Abroad", "+27821000011", "X1", "passport", "T011"],             # ERROR: passport needs 5 to 15 characters
     ["Kea", "Nophone", "", "999900122", "omang", ""],                       # warning: no phone
     ["Lebo", "Mixed", "71000013", "bp0012345", "omang", ""],                # ERROR: passport-looking number marked omang
+    ["Mia", "Clash", "71000001", "999900133", "omang", ""],                 # ERROR on both rows: same phone as Anna (row 2)
+    ["Noah", "Clash", "71000014", "999900011", "omang", ""],                # ERROR on both rows: same ID as Anna (row 2)
 ]
 
 

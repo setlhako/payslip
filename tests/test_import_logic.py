@@ -239,7 +239,7 @@ def test_same_name_twice_in_file_without_codes_marks_both_rows_as_errors(db):
 
 
 def test_same_name_in_file_is_fine_when_codes_tell_them_apart(db):
-    a, b = plan_of(db, "Hope,Same,71234567,1234,C1", "Hope,Same,71234568,1234,C2")
+    a, b = plan_of(db, "Hope,Same,71234567,1234,C1", "Hope,Same,71234568,5678,C2")
     assert a.action == b.action == NEW
 
 
@@ -262,9 +262,14 @@ def test_new_code_with_existing_same_name_creates_new_but_warns(db):
 
 def test_warnings_for_missing_phone_omang_and_shared_phone(db):
     make_employee(db, "Other", "Person", "+26771234567", "1111")
-    a, b = plan_of(db, "New,Person,71234567,,", "No,Phone,,,")
-    assert a.action == NEW and any("Same phone number as existing employee" in w for w in a.warnings)
-    assert any("No ID number" in w for w in a.warnings) and any("No phone" in w for w in b.warnings)
+    a, b = plan_of(db, "New,Person,71234568,,", "No,Phone,,,")
+    assert a.action == NEW and any("No ID number" in w for w in a.warnings) and any("No phone" in w for w in b.warnings)
+
+
+def test_phone_already_used_by_someone_else_is_now_an_error_not_a_warning(db):
+    make_employee(db, "Other", "Person", "+26771234567", "1111")
+    (a,) = plan_of(db, "New,Person,71234567,,")
+    assert a.action == "error" and any("already belongs to Other Person" in e for e in a.errors)
 
 
 def test_inactive_match_is_updated_but_warned_and_not_reactivated(db):

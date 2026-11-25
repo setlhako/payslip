@@ -77,5 +77,6 @@ templates.env.globals.update(
     can=can,                                     # {% if can(current_user, 'employees.edit') %} ... (hides buttons; the SERVER still enforces)
     role_label=lambda role: ROLE_LABELS.get(role, role),
     live_whatsapp_mode=lambda: get_settings().whatsapp_mode,   # "mock" or "live" (read each time, never cached)
+    session_idle_seconds=lambda: get_settings().session_idle_minutes * 60,   # for the inactivity warning (static/session.js)
     id_mask=FULL_MASK,  # the dots shown instead of a full ID number
 )

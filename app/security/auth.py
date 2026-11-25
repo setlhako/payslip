@@ -16,7 +16,7 @@ class PasswordChangeRequired(Exception):
 
 
 # The only pages a user on a temporary password may use before choosing their own password.
-PENDING_ALLOWED_PATHS = {"/account/password", "/logout"}
+PENDING_ALLOWED_PATHS = {"/account/password", "/logout", "/session/status", "/session/keepalive"}
 
 
 def require_login(request: Request, db: Session = Depends(get_db)) -> User:

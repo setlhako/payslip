@@ -17,6 +17,9 @@ from app.models import User
 
 UID, STARTED, LAST_SEEN, PW_FP, CSRF, VERSION = "uid", "iat", "seen", "pwf", "csrf_token", "sv"
 
+# Asking "how long is left?" must NOT count as activity, or the inactivity warning would keep the session alive forever.
+NO_TOUCH_PATHS = {"/session/status"}
+
 
 def now() -> float:
     """Current time in seconds. A separate function so tests can fast-forward the clock."""
@@ -69,5 +72,19 @@ def get_session_user(request: Request, db: Session) -> User | None:
             or s.get(VERSION, 0) != user.session_version):          # "sign out everywhere" bumps session_version
         s.clear()
         return None
-    s[LAST_SEEN] = t
+    if request.url.path not in NO_TOUCH_PATHS:
+        s[LAST_SEEN] = t
     return user
+
+
+def seconds_left(request: Request) -> int:
+    """Seconds until this session ends (idle limit or absolute limit, whichever comes first). 0 when unknown or over."""
+    s = request.session
+    settings = get_settings()
+    try:
+        t = now()
+        idle_left = settings.session_idle_minutes * 60 - (t - float(s[LAST_SEEN]))
+        absolute_left = settings.session_absolute_hours * 3600 - (t - float(s[STARTED]))
+    except (KeyError, TypeError, ValueError):
+        return 0
+    return max(0, int(min(idle_left, absolute_left)))

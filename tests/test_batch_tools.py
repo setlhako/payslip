@@ -80,9 +80,9 @@ def _token(client):
 # ---- make_test_payslips ------------------------------------------------------------------------------------------
 
 def test_the_generator_makes_every_case_from_the_current_employees(db, tmp_path):
-    for first, last in [("Thabo", "Molefe"), ("Neo", "Dube"), ("Chipo", "Fakename"), ("Kea", "Quiet"), ("Ana", "Silva"),
-                        ("Ben", "Sample"), ("Dina", "Demo"), ("Emma", "Mock"), ("Ana", "Silva")]:
-        make_employee(db, first, last, "+26771234567", "1234")
+    for i, (first, last) in enumerate([("Thabo", "Molefe"), ("Neo", "Dube"), ("Chipo", "Fakename"), ("Kea", "Quiet"), ("Ana", "Silva"),
+                                       ("Ben", "Sample"), ("Dina", "Demo"), ("Emma", "Mock"), ("Ana", "Silva")]):
+        make_employee(db, first, last, f"+26771{i:06d}", "1234")      # phone numbers are unique now
     made = make_test_payslips.build(db, tmp_path / "out")
     whats = " ".join(w for _, w in made)
     for case in ("EXACT", "swapped", "TYPO", "MIDDLE NAME", "UNKNOWN", "SAME NAME", "PDF TEXT names another", "IMAGE-ONLY", "PASSWORD-PROTECTED", "NOT A PDF"):
@@ -98,9 +98,10 @@ def test_the_generator_makes_every_case_from_the_current_employees(db, tmp_path)
 def test_the_generated_files_behave_as_labelled_when_uploaded(logged_in, db, tmp_path):
     from tests.batch_helpers import batch_id_of, by_name, create
 
-    for first, last in [("Thabo", "Molefe"), ("Neo", "Dube"), ("Chipo", "Fakename"), ("Kea", "Quiet"), ("Ana", "Silva"),
-                        ("Ben", "Sample"), ("Dina", "Demo"), ("Emma", "Mock"), ("Ana", "Silva"), ("Gift", "Trial"), ("Hope", "Duplicate")]:
-        make_employee(db, first, last, "+26771234567", "1234")
+    for i, (first, last) in enumerate([("Thabo", "Molefe"), ("Neo", "Dube"), ("Chipo", "Fakename"), ("Kea", "Quiet"), ("Ana", "Silva"),
+                                       ("Ben", "Sample"), ("Dina", "Demo"), ("Emma", "Mock"), ("Ana", "Silva"), ("Gift", "Trial"),
+                                       ("Hope", "Duplicate")]):
+        make_employee(db, first, last, f"+26771{i:06d}", "1234")      # phone numbers are unique now
     made = dict(make_test_payslips.build(db, tmp_path / "out"))
     files = [(p.name, p.read_bytes()) for p in sorted((tmp_path / "out" / "pdfs").iterdir())]
     rows = by_name(db, batch_id_of(create(logged_in, files)))

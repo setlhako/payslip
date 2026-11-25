@@ -5,6 +5,7 @@
 {% block lede %}{% if can(current_user, 'ids.reveal') %}The people who receive payslips. Full ID numbers are stored encrypted and stay hidden until you press Show IDs.{% else %}The people who receive payslips. ID numbers are always hidden for your role.{% endif %}{% endblock %}
 {% block actions %}
   {% if can(current_user, 'ids.reveal') %}<button type="button" class="btn btn-secondary needs-js" data-toggle-ids aria-pressed="false">{{ icon('eye') }}<span data-toggle-label>Show IDs</span></button>{% endif %}
+  {% if anything_saved %}<a class="btn btn-secondary" href="{{ export_url }}" title="Names, phone numbers and status. No ID numbers.">{{ icon('download') }}Export list (no ID numbers)</a>{% endif %}
   {% if can(current_user, 'employees.edit') %}
   <a class="btn btn-secondary" href="/employees/import">{{ icon('upload') }}Import</a>
   <a class="btn btn-primary" href="/employees/new">{{ icon('plus') }}Add employee</a>
@@ -30,10 +31,11 @@
     {% if sort != 'name' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
     {% if direction != 'asc' %}<input type="hidden" name="dir" value="{{ direction }}">{% endif %}
     {% if per_page != 25 %}<input type="hidden" name="per_page" value="{{ per_page }}">{% endif %}
+    {% if show %}<input type="hidden" name="show" value="{{ show }}">{% endif %}
     <div class="search-box">
       <label class="visually-hidden" for="q">Search employees</label>
       {{ icon('search', 'icon-lead') }}
-      <input class="input" type="search" id="q" name="q" value="{{ q }}" placeholder="Search name, phone or code">
+      <input class="input" type="search" id="q" name="q" value="{{ q }}" placeholder="Search name, phone or code" data-page-search aria-keyshortcuts="/">
       {% if q %}<a class="icon-btn clear" href="{{ url(q='') }}" aria-label="Clear search">{{ icon('x') }}</a>{% endif %}
     </div>
     <button class="btn btn-secondary" type="submit">Search</button>
@@ -44,6 +46,12 @@
     {% endfor %}
   </nav>
 </div>
+<nav class="chips chips-filter" aria-label="Show only">
+  <a class="chip" href="{{ url(show='') }}" {% if not show %}aria-current="true"{% endif %}>Everyone <span class="count">{{ filter_counts[''] }}</span></a>
+  {% for key, label in filters.items() %}
+  <a class="chip" href="{{ url(show=key) }}" {% if show == key %}aria-current="true"{% endif %}>{{ label }} <span class="count">{{ filter_counts[key] }}</span></a>
+  {% endfor %}
+</nav>
 
 {% if result.items %}
 {% if reveal %}
@@ -55,14 +63,28 @@
   <input type="hidden" name="dir" value="{{ direction }}">
   <input type="hidden" name="per_page" value="{{ per_page }}">
   <input type="hidden" name="page" value="{{ result.page }}">
+  <input type="hidden" name="show" value="{{ show }}">
 </form>
 <div class="callout callout-error" role="alert" data-reveal-error hidden>{{ icon('x-circle') }}<div class="callout-text" data-reveal-error-text></div></div>
+{% endif %}
+{% if editor %}
+<form method="post" action="/employees/bulk-deactivate" id="bulk-form" class="bulk-bar" data-bulk-form>
+  {{ csrf_input(request) }}
+  <input type="hidden" name="q" value="{{ q }}"><input type="hidden" name="status" value="{{ status }}">
+  <input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ direction }}">
+  <input type="hidden" name="per_page" value="{{ per_page }}"><input type="hidden" name="page" value="{{ result.page }}">
+  <input type="hidden" name="show" value="{{ show }}">
+  <p class="bulk-count" aria-live="polite"><span data-select-count>0</span> selected</p>
+  <button type="submit" class="btn btn-danger btn-sm" data-bulk-button data-confirm-title="Deactivate the selected employees?"
+          data-confirm="They are hidden from the default list and skipped when sending. Nothing is deleted, and you can reactivate them at any time." data-confirm-label="Deactivate">{{ icon('user-off') }}Deactivate selected</button>
+</form>
 {% endif %}
 <div class="table-card scroll-sm" role="region" aria-label="Employees" tabindex="0">
   <table class="data wide-table">
     <caption class="visually-hidden">Employees, {{ result.total }} found</caption>
     <thead>
       <tr>
+        {% if editor %}<th scope="col" class="col-check"><input type="checkbox" class="needs-js" data-select-all aria-label="Select all employees on this page"></th>{% endif %}
         {% set s = aria_sort('name') %}
         <th scope="col" aria-sort="{{ s }}"><a class="sort" href="{{ sort_link('name') }}">Name {{ icon('arrow-up' if s == 'ascending' else 'arrow-down' if s == 'descending' else 'sort') }}</a></th>
         <th scope="col" class="hide-sm">Code</th>
@@ -70,6 +92,7 @@
         <th scope="col" class="hide-sm">ID type</th>
         <th scope="col" class="hide-sm">ID number</th>
         {% if reveal %}<th scope="col" class="hide-sm">Password (last 4)</th>{% endif %}
+        <th scope="col" class="hide-sm">Last payslip</th>
         {% set s = aria_sort('status') %}
         <th scope="col" aria-sort="{{ s }}"><a class="sort" href="{{ sort_link('status') }}">Status {{ icon('arrow-up' if s == 'ascending' else 'arrow-down' if s == 'descending' else 'sort') }}</a></th>
         <th scope="col" class="col-actions-head"><span class="visually-hidden">Actions</span></th>
@@ -78,6 +101,7 @@
     <tbody>
     {% for e in result.items %}
       <tr>
+        {% if editor %}<td class="col-check">{% if e.active %}<input type="checkbox" name="employee_ids" value="{{ e.id }}" form="bulk-form" data-select-row aria-label="Select {{ e.first_name }} {{ e.surname }}">{% endif %}</td>{% endif %}
         <td>
           <div class="person">
             {{ avatar(e.first_name, e.surname, e.id) }}
@@ -89,7 +113,7 @@
         </td>
         <td class="hide-sm">{{ e.employee_code or '-' }}</td>
         <td class="hide-sm num nowrap">{% if e.phone %}{{ e.phone }}{% else %}<span class="muted">Missing</span>{% endif %}</td>
-        <td class="hide-sm">{% if e.id_type %}{{ e.id_type_label }}{% else %}-{% endif %}</td>
+        <td class="hide-sm">{% if e.id_type %}<span class="tag tag-{{ e.id_type }}">{{ e.id_type_label }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
         <td class="hide-sm nowrap">
           {% if not reveal %}{% if e.has_full_id or e.id_last4 %}<span class="secret">{{ id_mask }}</span>{% else %}<span class="muted">Not set</span>{% endif %}
           {% elif e.has_full_id %}<span class="secret" data-id-slot="{{ e.id }}">{{ id_mask }}</span>
@@ -97,6 +121,10 @@
           {% else %}<span class="muted">Not set</span>{% endif %}
         </td>
         {% if reveal %}<td class="hide-sm">{% if e.id_last4 %}<span class="secret" data-secret="{{ e.id_last4 }}">&bull;&bull;&bull;&bull;</span>{% else %}<span class="muted">Not set</span>{% endif %}</td>{% endif %}
+        <td class="hide-sm">
+          {% set last = recent.get(e.id) %}
+          {% if last %}<span class="last-month">{{ last[0] }}</span> {{ badge(last[1], month_status[last[1]]) }}{% else %}<span class="muted">None yet</span>{% endif %}
+        </td>
         <td>{{ badge('active', 'Active') if e.active else badge('inactive', 'Inactive') }}</td>
         <td class="col-actions">
           {% if editor %}
@@ -127,6 +155,7 @@
       {% if status != 'active' %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
       {% if sort != 'name' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
       {% if direction != 'asc' %}<input type="hidden" name="dir" value="{{ direction }}">{% endif %}
+      {% if show %}<input type="hidden" name="show" value="{{ show }}">{% endif %}
       <label for="per_page">Rows per page</label>
       <select class="select" id="per_page" name="per_page" data-autosubmit>
         {% for n in per_page_choices %}<option value="{{ n }}" {% if n == per_page %}selected{% endif %}>{{ n }}</option>{% endfor %}

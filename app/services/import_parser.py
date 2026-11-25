@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-from app.services.id_crypto import encrypt_id
+from app.services.id_crypto import encrypt_id, id_blind_index
 from app.services.ids import parse_id
 from app.services.names import clean_display_name, name_words
 from app.services.phones import normalise_phone
@@ -39,6 +39,8 @@ class ParsedRow:
     id_last4: str | None = None       # the last 4 characters (uppercase): the PDF password
     # the full number, ENCRYPTED already (never plain text here). Hidden from repr() so it can't end up in logs or test output.
     id_encrypted: str | None = field(default=None, repr=False)
+    # blind index of the full number (HMAC, see id_crypto): lets the planner find duplicate IDs without decrypting anything
+    id_hash: str | None = field(default=None, repr=False)
     employee_code: str | None = None
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -229,6 +231,7 @@ def _parse_row(number: int, get, cells: list[str]) -> ParsedRow:
         row.errors.append(f"ID: {ident.error}")
     row.id_type, row.id_last4 = ident.id_type, ident.last4
     row.id_encrypted = encrypt_id(ident.number) if ident.number else None
+    row.id_hash = id_blind_index(ident.number) if ident.number else None
     row.warnings += [f"ID: {w}" for w in ident.warnings]
 
     code = get(cells, "employee_code").strip()

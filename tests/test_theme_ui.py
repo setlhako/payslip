@@ -204,7 +204,7 @@ def test_error_toasts_use_role_alert_and_stay_until_dismissed(staff, db, admin):
 
 def test_there_is_one_accessible_confirm_dialog_and_risky_buttons_use_it(staff, db):
     html = staff["admin"].get("/users").text
-    dialog = re.search(r'<dialog class="dialog" id="confirm-dialog" aria-labelledby="confirm-title">(.*?)</dialog>', html, re.S)
+    dialog = re.search(r'<dialog class="dialog" id="confirm-dialog" role="alertdialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">(.*?)</dialog>', html, re.S)
     assert dialog and 'id="confirm-title"' in dialog.group(1) and 'method="dialog"' in dialog.group(1) and 'value="cancel"' in dialog.group(1) and "data-confirm-ok" in dialog.group(1)
     assert html.count("data-confirm=") >= 3 and 'data-confirm-title="Reset password?"' in html and 'data-confirm-title="Disable this user?"' in html
     bid = ready_batch(staff["hr"], db)
