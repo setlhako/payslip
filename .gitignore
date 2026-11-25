@@ -27,3 +27,6 @@ sample_import.*
 
 # Fake payslip PDFs made by app.scripts.make_test_payslips
 test_payslips/
+
+# Notes for Claude Code (kept on this PC only)
+CLAUDE.md
